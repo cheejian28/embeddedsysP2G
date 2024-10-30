@@ -6,8 +6,6 @@
  * connected to a Raspberry Pi Pico. The pulse width data is measured using interrupts to detect
  * the rising and falling edges of the signals for both encoders.
  *
- * @author Hew Zhong Xuan
- * @date 15/10/2024
  */
 
 #include "pico/stdlib.h"
@@ -21,6 +19,13 @@
 #define MAX_PULSE_WIDTH_US 1000000 ///< Maximum pulse width to detect (1 second in microseconds)
 #define WHEEL_DIAMETER_CM 10.0     ///< Wheel diameter in centimeters
 #define PPR 8                      ///< Pulses per revolution of the encoder
+
+// Struct to store speed information
+typedef struct
+{
+    double left_wheel_speed;
+    double right_wheel_speed;
+} WheelSpeeds;
 
 // Variables for the left encoder
 volatile int64_t pulse_width_us_left = 0;  ///< Width of the pulse in microseconds for left encoder.
@@ -43,10 +48,9 @@ double distance_per_pulse;  ///< Distance traveled per pulse
 void encoder_callback(uint gpio, uint32_t events);
 void init_wheel_encoder();
 void init_wheel_parameters();
-double get_distance_traveled_left();
 double calculate_speed_left();
-double get_distance_traveled_right();
 double calculate_speed_right();
+WheelSpeeds get_speeds();
 
 void encoder_callback(uint gpio, uint32_t events)
 {
@@ -54,141 +58,115 @@ void encoder_callback(uint gpio, uint32_t events)
 
     if (gpio == ENCODER_PIN_LEFT)
     {
-        // Handle left encoder events
         if (events & GPIO_IRQ_EDGE_RISE)
         {
-            // Debounce and capture the start time when the signal rises
             if (absolute_time_diff_us(last_rise_time_left, now) > DEBOUNCE_US)
             {
-                last_rise_time_left = now; // Record the time of the rising edge
+                last_rise_time_left = now;
             }
         }
         else if (events & GPIO_IRQ_EDGE_FALL)
         {
-            // Debounce and capture the pulse width when the signal falls
             if (absolute_time_diff_us(last_fall_time_left, now) > DEBOUNCE_US)
             {
-                last_fall_time_left = now;                                                             // Record the time of the falling edge
-                pulse_width_us_left = absolute_time_diff_us(last_rise_time_left, last_fall_time_left); // Calculate the pulse width
-                new_pulse_data_left = true;                                                            // Set the flag when new data is available
-                pulse_count_left++;                                                                    // Increment pulse count
+                last_fall_time_left = now;
+                pulse_width_us_left = absolute_time_diff_us(last_rise_time_left, last_fall_time_left);
+                new_pulse_data_left = true;
+                pulse_count_left++;
             }
         }
     }
     else if (gpio == ENCODER_PIN_RIGHT)
     {
-        // Handle right encoder events
         if (events & GPIO_IRQ_EDGE_RISE)
         {
-            // Debounce and capture the start time when the signal rises
             if (absolute_time_diff_us(last_rise_time_right, now) > DEBOUNCE_US)
             {
-                last_rise_time_right = now; // Record the time of the rising edge
+                last_rise_time_right = now;
             }
         }
         else if (events & GPIO_IRQ_EDGE_FALL)
         {
-            // Debounce and capture the pulse width when the signal falls
             if (absolute_time_diff_us(last_fall_time_right, now) > DEBOUNCE_US)
             {
-                last_fall_time_right = now;                                                               // Record the time of the falling edge
-                pulse_width_us_right = absolute_time_diff_us(last_rise_time_right, last_fall_time_right); // Calculate the pulse width
-                new_pulse_data_right = true;                                                              // Set the flag when new data is available
-                pulse_count_right++;                                                                      // Increment pulse count
+                last_fall_time_right = now;
+                pulse_width_us_right = absolute_time_diff_us(last_rise_time_right, last_fall_time_right);
+                new_pulse_data_right = true;
+                pulse_count_right++;
             }
         }
     }
 }
 
-// Initialise wheel encoders
 void init_wheel_encoder()
 {
-    // Left encoder initialization
     gpio_init(ENCODER_PIN_LEFT);
     gpio_set_dir(ENCODER_PIN_LEFT, GPIO_IN);
     gpio_pull_up(ENCODER_PIN_LEFT);
 
-    // Enable interrupts on both rising and falling edges for left encoder
     gpio_set_irq_enabled_with_callback(ENCODER_PIN_LEFT, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &encoder_callback);
 
-    // Right encoder initialization
     gpio_init(ENCODER_PIN_RIGHT);
     gpio_set_dir(ENCODER_PIN_RIGHT, GPIO_IN);
     gpio_pull_up(ENCODER_PIN_RIGHT);
 
-    // Enable interrupts on both rising and falling edges for right encoder
     gpio_set_irq_enabled(ENCODER_PIN_RIGHT, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
 }
 
-// Function to initialize wheel parameters
 void init_wheel_parameters()
 {
     wheel_circumference = M_PI * WHEEL_DIAMETER_CM;
     distance_per_pulse = wheel_circumference / PPR;
 }
 
-// Functions for the left encoder
-double get_distance_traveled_left()
-{
-    return pulse_count_left * distance_per_pulse;
-}
-
 double calculate_speed_left()
 {
     if (pulse_width_us_left > 0 && pulse_width_us_left < MAX_PULSE_WIDTH_US)
     {
-        double time_interval_s = pulse_width_us_left / 1000000.0; // Convert pulse width from microseconds to seconds
-        double speed = distance_per_pulse / time_interval_s;      // Calculate speed (distance per pulse / time interval)
+        double time_interval_s = pulse_width_us_left / 1000000.0;
+        double speed = distance_per_pulse / time_interval_s;
         return speed;
     }
     return 0.0;
-}
-
-// Functions for the right encoder
-double get_distance_traveled_right()
-{
-    return pulse_count_right * distance_per_pulse;
 }
 
 double calculate_speed_right()
 {
     if (pulse_width_us_right > 0 && pulse_width_us_right < MAX_PULSE_WIDTH_US)
     {
-        double time_interval_s = pulse_width_us_right / 1000000.0; // Convert pulse width from microseconds to seconds
-        double speed = distance_per_pulse / time_interval_s;       // Calculate speed (distance per pulse / time interval)
+        double time_interval_s = pulse_width_us_right / 1000000.0;
+        double speed = distance_per_pulse / time_interval_s;
         return speed;
     }
     return 0.0;
 }
 
+// Function to get the speeds of both wheels
+WheelSpeeds get_speeds()
+{
+    WheelSpeeds speeds;
+    speeds.left_wheel_speed = calculate_speed_left();
+    speeds.right_wheel_speed = calculate_speed_right();
+    return speeds;
+}
+
 int main()
 {
-    // Initialize standard I/O and the wheel encoders
     stdio_init_all();
     init_wheel_parameters();
     init_wheel_encoder();
 
     while (true)
     {
-        double distance_left = get_distance_traveled_left();
-        double speed_left = calculate_speed_left();
+        WheelSpeeds speeds = get_speeds();
 
-        double distance_right = get_distance_traveled_right();
-        double speed_right = calculate_speed_right();
-
-        if (new_pulse_data_left)
+        if (new_pulse_data_left || new_pulse_data_right)
         {
-            printf("Left Motor - Distance Traveled: %.2f cm, Speed: %.2f cm/s\n", distance_left, speed_left);
-            new_pulse_data_left = false; // Reset the flag
+            printf("Left Wheel Speed: %.2f cm/s, Right Wheel Speed: %.2f cm/s\n", speeds.left_wheel_speed, speeds.right_wheel_speed);
+            new_pulse_data_left = false;
+            new_pulse_data_right = false;
         }
-
-        if (new_pulse_data_right)
-        {
-            printf("Right Motor - Distance Traveled: %.2f cm, Speed: %.2f cm/s\n", distance_right, speed_right);
-            new_pulse_data_right = false; // Reset the flag
-        }
-
-        if (!new_pulse_data_left && !new_pulse_data_right)
+        else
         {
             printf("No valid pulse detected\n");
         }
