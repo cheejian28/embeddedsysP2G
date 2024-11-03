@@ -1,11 +1,29 @@
-set(WIFI_SSID "${WIFI_SSID}" CACHE INTERNAL "WiFi SSID for examples")
-set(WIFI_PASSWORD "${WIFI_PASSWORD}" CACHE INTERNAL "WiFi password for examples")
+cmake_minimum_required(VERSION 3.12)
 
-if ("${WIFI_SSID}" STREQUAL "")
-    message("Skipping some Pico W examples as WIFI_SSID is not defined")
-elseif ("${WIFI_PASSWORD}" STREQUAL "")
-    message("Skipping some Pico W examples as WIFI_PASSWORD is not defined")
-else()
-    add_subdirectory(tcp_client)
-    add_subdirectory(tcp_server)
+if (PICO_CYW43_SUPPORTED) # set by PICO_BOARD=pico_w
+    if (NOT TARGET pico_cyw43_arch)
+        message("Skipping Pico W examples as support is not available")
+    else()
+        add_executable(test_car test_car.c)
+        add_subdirectory(communication)
+
+        target_compile_definitions(test_car PRIVATE)
+
+        target_link_libraries(test_car pico_stdlib wifi_communication client_communication server_communication)
+        
+
+        pico_add_extra_outputs(test_car)
+        pico_enable_stdio_usb(test_car 1)
+
+
+
+        add_executable(test_remote test_remote.c)
+        target_compile_definitions(test_remote PRIVATE)
+
+        target_link_libraries(test_remote pico_stdlib wifi_communication client_communication server_communication)
+        
+
+        pico_add_extra_outputs(test_remote)
+        pico_enable_stdio_usb(test_remote 1)
+    endif()
 endif()
