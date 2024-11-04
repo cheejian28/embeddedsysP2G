@@ -1,178 +1,97 @@
-/**
- * @file wheel_encoder_dual.c
- * @brief Dual wheel encoder driver for HCMODU0240 IR encoders using Raspberry Pi Pico.
- *
- * This file contains functions to capture the pulse width data from two HCMODU0240 IR wheel encoders
- * connected to a Raspberry Pi Pico. The pulse width data is measured using interrupts to detect
- * the rising and falling edges of the signals for both encoders.
- *
- */
-
+#include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
-#include <stdio.h>
-#include <math.h>
 
-#define ENCODER_PIN_LEFT 1         ///< GPIO pin number for the left encoder output pin
-#define ENCODER_PIN_RIGHT 2        ///< GPIO pin number for the right encoder output pin
-#define DEBOUNCE_US 100            ///< Debounce time in microseconds to avoid noise
-#define MAX_PULSE_WIDTH_US 1000000 ///< Maximum pulse width to detect (1 second in microseconds)
-#define WHEEL_DIAMETER_CM 10.0     ///< Wheel diameter in centimeters
-#define PPR 8                      ///< Pulses per revolution of the encoder
+#define ENCODER_LEFT 6
+#define ENCODER_RIGHT 7
 
-// Struct to store speed information
-typedef struct
+#define ENCODER_CIRCUMFERENCE 6.28f                                            // cm
+#define WHEEL_CIRCUMFERENCE 21.0f                                              // cm
+#define EDGES_PER_ROTATION 20                                                  // Number of edges (slits) in the encoder wheel
+#define DISTANCE_PER_EDGE_ENCODER (ENCODER_CIRCUMFERENCE / EDGES_PER_ROTATION) // cm per edge
+#define WHEEL_TO_ENCODER_RATIO (WHEEL_CIRCUMFERENCE / ENCODER_CIRCUMFERENCE)   // Ratio
+
+static int num_edge_l;
+static int num_edge_r;
+static float pulse_width_l;
+static float pulse_width_r;
+static float t_distance_travelled;
+struct repeating_timer timer;
+
+void gpio_callback(uint gpio, uint32_t events)
 {
-    double left_wheel_speed;
-    double right_wheel_speed;
-} WheelSpeeds;
+    static uint32_t edge_fall_time_l;
+    static uint32_t edge_fall_time_r;
 
-// Variables for the left encoder
-volatile int64_t pulse_width_us_left = 0;  ///< Width of the pulse in microseconds for left encoder.
-volatile int pulse_count_left = 0;         ///< Counter for pulses on the left encoder
-volatile bool new_pulse_data_left = false; ///< Flag to indicate new pulse width data for left encoder
-absolute_time_t last_rise_time_left;
-absolute_time_t last_fall_time_left;
+    uint32_t current_time = time_us_32();
 
-// Variables for the right encoder
-volatile int64_t pulse_width_us_right = 0;  ///< Width of the pulse in microseconds for right encoder.
-volatile int pulse_count_right = 0;         ///< Counter for pulses on the right encoder
-volatile bool new_pulse_data_right = false; ///< Flag to indicate new pulse width data for right encoder
-absolute_time_t last_rise_time_right;
-absolute_time_t last_fall_time_right;
-
-double wheel_circumference; ///< Circumference of the wheel
-double distance_per_pulse;  ///< Distance traveled per pulse
-
-// Function prototypes
-void encoder_callback(uint gpio, uint32_t events);
-void init_wheel_encoder();
-void init_wheel_parameters();
-double calculate_speed_left();
-double calculate_speed_right();
-WheelSpeeds get_speeds();
-
-void encoder_callback(uint gpio, uint32_t events)
-{
-    absolute_time_t now = get_absolute_time();
-
-    if (gpio == ENCODER_PIN_LEFT)
-    {
-        if (events & GPIO_IRQ_EDGE_RISE)
-        {
-            if (absolute_time_diff_us(last_rise_time_left, now) > DEBOUNCE_US)
-            {
-                last_rise_time_left = now;
-            }
-        }
-        else if (events & GPIO_IRQ_EDGE_FALL)
-        {
-            if (absolute_time_diff_us(last_fall_time_left, now) > DEBOUNCE_US)
-            {
-                last_fall_time_left = now;
-                pulse_width_us_left = absolute_time_diff_us(last_rise_time_left, last_fall_time_left);
-                new_pulse_data_left = true;
-                pulse_count_left++;
-            }
-        }
+    if (gpio == ENCODER_LEFT)
+    {                                                                          // Left wheel
+        pulse_width_l = (float)(current_time - edge_fall_time_l) / 1000000.0f; // Pulse width in seconds
+        num_edge_l++;
+        edge_fall_time_l = current_time; // Reset timer
     }
-    else if (gpio == ENCODER_PIN_RIGHT)
-    {
-        if (events & GPIO_IRQ_EDGE_RISE)
-        {
-            if (absolute_time_diff_us(last_rise_time_right, now) > DEBOUNCE_US)
-            {
-                last_rise_time_right = now;
-            }
-        }
-        else if (events & GPIO_IRQ_EDGE_FALL)
-        {
-            if (absolute_time_diff_us(last_fall_time_right, now) > DEBOUNCE_US)
-            {
-                last_fall_time_right = now;
-                pulse_width_us_right = absolute_time_diff_us(last_rise_time_right, last_fall_time_right);
-                new_pulse_data_right = true;
-                pulse_count_right++;
-            }
-        }
+    else if (gpio == ENCODER_RIGHT)
+    {                                                                          // Right wheel
+        pulse_width_r = (float)(current_time - edge_fall_time_r) / 1000000.0f; // Pulse width in seconds
+        num_edge_r++;
+        edge_fall_time_r = current_time;
     }
 }
 
-void init_wheel_encoder()
+bool print_out(struct repeating_timer *t)
 {
-    gpio_init(ENCODER_PIN_LEFT);
-    gpio_set_dir(ENCODER_PIN_LEFT, GPIO_IN);
-    gpio_pull_up(ENCODER_PIN_LEFT);
+    float speed_per_sec_l = 0;  // Measured in cm/s
+    float speed_per_sec_r = 0;  // Measured in cm/s
+    float distance_per_sec = 0; // Measured in cm
 
-    gpio_set_irq_enabled_with_callback(ENCODER_PIN_LEFT, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &encoder_callback);
+    // Calculate the average number of edges detected
+    float avg_num_edges = ((num_edge_l + num_edge_r) / 2.0f);
 
-    gpio_init(ENCODER_PIN_RIGHT);
-    gpio_set_dir(ENCODER_PIN_RIGHT, GPIO_IN);
-    gpio_pull_up(ENCODER_PIN_RIGHT);
+    // Calculate encoder wheel distance
+    float encoder_distance = avg_num_edges * DISTANCE_PER_EDGE_ENCODER;
 
-    gpio_set_irq_enabled(ENCODER_PIN_RIGHT, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
-}
+    // Adjust to actual wheel distance
+    distance_per_sec = encoder_distance * WHEEL_TO_ENCODER_RATIO;
 
-void init_wheel_parameters()
-{
-    wheel_circumference = M_PI * WHEEL_DIAMETER_CM;
-    distance_per_pulse = wheel_circumference / PPR;
-}
+    // Update total distance traveled
+    t_distance_travelled += distance_per_sec;
 
-double calculate_speed_left()
-{
-    if (pulse_width_us_left > 0 && pulse_width_us_left < MAX_PULSE_WIDTH_US)
-    {
-        double time_interval_s = pulse_width_us_left / 1000000.0;
-        double speed = distance_per_pulse / time_interval_s;
-        return speed;
-    }
-    return 0.0;
-}
+    // Calculate speed for left and right wheels
+    speed_per_sec_l = (pulse_width_l > 0) ? (DISTANCE_PER_EDGE_ENCODER / pulse_width_l) * WHEEL_TO_ENCODER_RATIO : 0;
+    speed_per_sec_r = (pulse_width_r > 0) ? (DISTANCE_PER_EDGE_ENCODER / pulse_width_r) * WHEEL_TO_ENCODER_RATIO : 0;
 
-double calculate_speed_right()
-{
-    if (pulse_width_us_right > 0 && pulse_width_us_right < MAX_PULSE_WIDTH_US)
-    {
-        double time_interval_s = pulse_width_us_right / 1000000.0;
-        double speed = distance_per_pulse / time_interval_s;
-        return speed;
-    }
-    return 0.0;
-}
+    // Print results
+    printf("Total distance: %.2f cm\n", t_distance_travelled);
+    printf("Distance per second: %.2f cm/s\n", distance_per_sec);
+    printf("Speed using left pulse width: %.2f cm/s\n", speed_per_sec_l);
+    printf("Speed using right pulse width: %.2f cm/s\n\n", speed_per_sec_r);
 
-// Function to get the speeds of both wheels
-WheelSpeeds get_speeds()
-{
-    WheelSpeeds speeds;
-    speeds.left_wheel_speed = calculate_speed_left();
-    speeds.right_wheel_speed = calculate_speed_right();
-    return speeds;
+    // Reset edge counts
+    num_edge_l = 0;
+    num_edge_r = 0;
+    return true;
 }
 
 int main()
 {
     stdio_init_all();
-    init_wheel_parameters();
-    init_wheel_encoder();
 
-    while (true)
+    // Setup pins
+    printf("Wheel Encoder Measurement\n");
+    gpio_set_function(ENCODER_LEFT, GPIO_IN);
+    gpio_set_function(ENCODER_RIGHT, GPIO_IN);
+
+    // Configure GPIO pins with interrupts
+    gpio_set_irq_enabled_with_callback(ENCODER_LEFT, GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
+    gpio_set_irq_enabled(ENCODER_RIGHT, GPIO_IRQ_EDGE_FALL, true);
+
+    // Timer for periodic output (every 1000ms)
+    add_repeating_timer_ms(-1000, print_out, NULL, &timer);
+
+    // Main loop
+    while (1)
     {
-        WheelSpeeds speeds = get_speeds();
-
-        if (new_pulse_data_left || new_pulse_data_right)
-        {
-            printf("Left Wheel Speed: %.2f cm/s, Right Wheel Speed: %.2f cm/s\n", speeds.left_wheel_speed, speeds.right_wheel_speed);
-            new_pulse_data_left = false;
-            new_pulse_data_right = false;
-        }
-        else
-        {
-            printf("No valid pulse detected\n");
-        }
-
-        sleep_ms(500);
+        tight_loop_contents();
     }
-
-    return 0;
 }
