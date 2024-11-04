@@ -28,45 +28,45 @@ set(PICO_BOARD pico_w CACHE STRING "Board type")
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-project(AccelerometerSeanLee C CXX ASM)
+project(UpdatedAccelerometer C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(AccelerometerSeanLee AccelerometerSeanLee.c )
+add_executable(UpdatedAccelerometer UpdatedAccelerometer.c )
 
-pico_set_program_name(AccelerometerSeanLee "AccelerometerSeanLee")
-pico_set_program_version(AccelerometerSeanLee "0.1")
+pico_set_program_name(UpdatedAccelerometer "UpdatedAccelerometer")
+pico_set_program_version(UpdatedAccelerometer "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(AccelerometerSeanLee 0)
-pico_enable_stdio_usb(AccelerometerSeanLee 0)
+pico_enable_stdio_uart(UpdatedAccelerometer 0)
+pico_enable_stdio_usb(UpdatedAccelerometer 0)
 
 # Add the standard library to the build
-target_link_libraries(AccelerometerSeanLee
+target_link_libraries(UpdatedAccelerometer
         pico_stdlib hardware_i2c)
 
 # Add the standard include files to the build
-target_include_directories(AccelerometerSeanLee PRIVATE
+target_include_directories(UpdatedAccelerometer PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}
   ${CMAKE_CURRENT_LIST_DIR}/.. # for our common lwipopts or any other standard includes, if required
 )
 
 # Enable USB output for printf over USB
-pico_enable_stdio_usb(AccelerometerSeanLee 1)
+pico_enable_stdio_usb(UpdatedAccelerometer 1)
 
 # Enable UART output, if needed (turn it on for UART printf)
-pico_enable_stdio_uart(AccelerometerSeanLee 0)
+pico_enable_stdio_uart(UpdatedAccelerometer 0)
 
 # Create the UF2 file and other outputs (e.g., ELF, bin)
-pico_add_extra_outputs(AccelerometerSeanLee)
+pico_add_extra_outputs(UpdatedAccelerometer)
 
 # Add any user requested libraries
-target_link_libraries(AccelerometerSeanLee 
+target_link_libraries(UpdatedAccelerometer 
         
         )
 
-pico_add_extra_outputs(AccelerometerSeanLee)
+pico_add_extra_outputs(UpdatedAccelerometer)
 
