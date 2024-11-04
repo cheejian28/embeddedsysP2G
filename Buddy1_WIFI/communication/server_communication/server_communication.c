@@ -19,8 +19,6 @@ typedef struct TCP_SERVER_T_ {
     uint8_t buffer_sent[BUF_SIZE];
     uint8_t buffer_recv[BUF_SIZE];
     int sent_len;
-    // int recv_len;
-    // int run_count;
 } TCP_SERVER_T;
 
 static TCP_SERVER_T *state = NULL;
@@ -228,4 +226,28 @@ bool start_tcp_server(message_callback_t cb) {
 
     printf("[TCP Server] Sucessfully started server!\n");
     return true;
+}
+
+//=======================================================
+//  FREERTOS TASK FOR TCP Server
+//=======================================================
+
+#ifndef configMINIMAL_STACK_SIZE
+#define configMINIMAL_STACK_SIZE 128 // Or another appropriate size
+#endif
+
+void set_callback(message_callback_t cb){
+    message_callback = cb;
+}
+
+void checkServerConnection(){
+    sleep_ms(5000);
+    if(!state || state->complete){
+        printf("[TCP Server TASK] Attempting to start Server..\n");
+        if(start_tcp_server(message_callback)){
+            printf("[TCP Server TASK] Server has successfully started!\n");
+        }else{
+            printf("[TCP Server TASK] Failed to start Server, retrying in 5 seconds\n");
+        }
+    }
 }

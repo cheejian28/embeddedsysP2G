@@ -13,5 +13,11 @@ bool init_tcp_client();
 bool init_tcp_client_with_ip(const char *ip_address);
 bool tcp_send_data(const char *data);
 
+
+// FREERTOS FUNCTIOMS
+void checkClientConnection();
+void set_ip_address(char *ipaddr);
+// void freertos_init_tcp_client_tasks();
 // void freertos_tcp_client_task(void *pvParameters);
+
 #endif

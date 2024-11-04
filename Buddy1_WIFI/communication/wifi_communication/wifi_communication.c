@@ -7,14 +7,11 @@
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
 
-
 #include "wifi_communication.h"
 
 
 void check_connections(void);
 static void handle_wifi_reconnect(void);
-
-static bool wifi_connected = false;
 
 
 static bool wifi_connect(const char *ssid, const char *password){
@@ -26,7 +23,7 @@ static bool wifi_connect(const char *ssid, const char *password){
 
     printf("Connecting to WIFI..\n");
     if (cyw43_arch_wifi_connect_timeout_ms(ssid, password, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
-        printf("Failed to connect to WIFI\n");
+        printf("Failed to connect to WIFI using %s, %s\n", ssid, password);
         return false;
     } 
 
@@ -34,8 +31,9 @@ static bool wifi_connect(const char *ssid, const char *password){
     return true;
 }
 
-bool init_wifi(){
-    if(wifi_connect(WIFI_SSID, WIFI_PASSWORD)){
+
+bool init_wifi_with_ssid_password(const char *ssid, const char *password){
+    if(wifi_connect(ssid, password)){
         printf("Successfully Initialised WIFI!\n");
         return true;
     }else{
@@ -44,32 +42,8 @@ bool init_wifi(){
     }
 }
 
-
-//=======================================================
-//  CODE TO CHECK FOR DISCONNECTS AND HANDLE RECONNECT
-//=======================================================
-
-void run_connection_monitor() {
-    while (true) {
-        if (!cyw43_arch_wifi_is_connected()) {
-            wifi_connected = false;
-            handle_wifi_reconnect();
-        }
-        sleep_ms(1000); // Adjust as needed
-    }
-}
-
-static void handle_wifi_reconnect() {
-    while (!wifi_connected) {
-        printf("Attempting to reconnect to Wi-Fi...\n");
-        wifi_connected = wifi_connect(WIFI_SSID, WIFI_PASSWORD);
-        if (wifi_connected) {
-            printf("Reconnected to Wi-Fi!\n");
-        } else {
-            printf("Failed to connect to WIFI, retrying in 5 seconds");
-            sleep_ms(5000);
-        }
-    }
+bool init_wifi(){
+    return init_wifi_with_ssid_password(WIFI_SSID, WIFI_PASSWORD);
 }
 
 //=======================================================
@@ -80,20 +54,25 @@ static void handle_wifi_reconnect() {
 #define configMINIMAL_STACK_SIZE 128 // Or another appropriate size
 #endif
 
-void freertos_init_wifi_tasks() {
-    xTaskCreate(freertos_wifi_task, "WiFi Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+char *w_ssid = NULL;
+char *w_password = NULL;
+
+void set_ssid_password(char *s, char *p){
+    w_ssid = s;
+    w_password = p;
 }
 
-void freertos_wifi_task(void *pvParameters){
-    while(1){
-        if(!cyw43_arch_wifi_is_connected()){
-            printf("[WIFI TASK] Attempting to re-connect to WIFI..");
-            if(wifi_connect(WIFI_SSID, WIFI_PASSWORD)){
-                printf("[WIFI TASK] Connected to WIFI!");
-            }else{
-                printf("[WIFI TASK] Failed to connect to WIFI, retrying in 5 seconds");
-            }
+
+void checkWifiConnection(){
+    // printf("Here: %u\n",cyw43_state.netif[0].ip_addr.addr);
+    if(!cyw43_state.netif[0].ip_addr.addr){
+        printf("[WIFI TASK] Attempting to re-connect to WIFI..\n");
+        if(w_ssid && w_password && wifi_connect(w_ssid, w_password)){
+            printf("[WIFI TASK] Connected to WIFI using %s, %s!\n", w_ssid, w_password);
+        }else if(wifi_connect(WIFI_SSID, WIFI_PASSWORD)){
+            printf("[WIFI TASK] Connected to WIFI using %s, %s!\n", WIFI_SSID, WIFI_PASSWORD);
+        }else{
+            printf("[WIFI TASK] Failed to connect to WIFI, retrying in 5 seconds\n");
         }
-        vTaskDelay(pdMs_TO_TICKS(5000));
     }
 }

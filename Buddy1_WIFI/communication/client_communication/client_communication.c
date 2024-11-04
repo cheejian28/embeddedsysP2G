@@ -87,6 +87,7 @@ static err_t tcp_result(void *arg, int status) {
         printf("[TCP Client] test failed %d\n", status);
     }
     state->complete = true;
+    state->connected = false;
     return tcp_client_close(arg);
 }
 
@@ -132,7 +133,8 @@ static err_t tcp_client_poll(void *arg, struct tcp_pcb *tpcb) {
         return ERR_OK;
     } else {
         printf("[TCP Client] tcp_client_poll: Connection has been lost\n");
-        return tcp_result(arg, -1);
+        return ERR_OK;
+        // return tcp_result(arg, -1);
     }
 }
 
@@ -208,6 +210,8 @@ static bool tcp_client_open(void *arg) {
     err_t err = tcp_connect(state->tcp_pcb, &state->remote_addr, TCP_PORT, tcp_client_connected);
     cyw43_arch_lwip_end();
 
+    printf("Result from connection: %d\n", err);
+
     return err == ERR_OK;
 }
 
@@ -247,4 +251,32 @@ bool init_tcp_client_with_ip(const char *ip_address){
 
 bool init_tcp_client(){
     return init_tcp_client_with_ip(IP_ADDRESS);
+}
+
+//=======================================================
+//  FREERTOS TASK FOR TCP Client
+//=======================================================
+
+#ifndef configMINIMAL_STACK_SIZE
+#define configMINIMAL_STACK_SIZE 128 // Or another appropriate size
+#endif
+
+
+char *ip_address = NULL;
+
+void set_ip_address(char *ipaddr){
+    ip_address = ipaddr;
+}
+
+void checkClientConnection(){
+    if(!state || !state->connected){
+        printf("[TCP Client TASK] Attempting to re-connect to Server..\n");
+        if(ip_address && init_tcp_client_with_ip(ip_address)){
+            printf("[TCP Client TASK] Connected to Server using %s!\n", ip_address);
+        }else if(init_tcp_client()){
+            printf("[TCP Client TASK] Connected to Server using %s!\n", IP_ADDRESS);
+        }else{
+            printf("[TCP Client TASK] Failed to connect to Server, retrying in 5 seconds\n");
+        }
+    }
 }

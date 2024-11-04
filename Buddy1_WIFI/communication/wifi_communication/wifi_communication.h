@@ -7,14 +7,18 @@
 #define WIFI_SSID "SimPhone"
 #define WIFI_PASSWORD "a1234567"
 
-#define CAR_IP_ADDRESS "172.20.10.9"
 #define TCP_PORT 4242
 
 #define BUF_SIZE 2048
 
 
 bool init_wifi();
+bool init_wifi_with_ssid_password(const char *ssid, const char *password);
 
-void freertos_init_wifi_tasks();
-void freertos_wifi_task(void *pvParameters);
+// FREERTOS FUNCTIONS
+void set_ssid_password(char *ssid, char *password);
+void checkWifiConnection();
+
+// void freertos_init_wifi_tasks();
+// void freertos_wifi_task(void *pvParameters);
 #endif
