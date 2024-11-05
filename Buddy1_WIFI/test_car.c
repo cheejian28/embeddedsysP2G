@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <pico/stdlib.h>
 #include "wifi_communication.h"
-#include "client_communication.h"
 #include "server_communication.h"
 
 void message_handler(const char *message);

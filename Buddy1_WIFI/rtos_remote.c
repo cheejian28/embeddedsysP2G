@@ -4,13 +4,12 @@
 #include "task.h"
 
 #include "wifi_communication.h"
-#include "server_communication.h"
+#include "client_communication.h"
 
 // Function prototypes
 void vWifiTask(void *pvParameters);
 void vClientTask(void *pvParameters);
-
-void message_handler(const char *message);
+void vSendDataTask(void *pvParameters);
 
 int main() {
     // Initialize the Pico standard library
@@ -21,9 +20,10 @@ int main() {
     set_ssid_password("SimPhone", "a1234567");
     xTaskCreate(vWifiTask, "Wifi Task", 256, NULL, 1, NULL);
 
-    // set_ip_address("172.20.10.3");
-    // set_callback(message_handler);
-    // xTaskCreate(vClientTask, "TCP Client Task", 256, NULL, 1, NULL);
+    set_ip_address("172.20.10.2");
+    xTaskCreate(vClientTask, "TCP Client Task", 256, NULL, 1, NULL);
+
+    xTaskCreate(vSendDataTask, "Send Data Task", 256, NULL, 1, NULL);
 
     // Start the scheduler
     vTaskStartScheduler();
@@ -43,11 +43,15 @@ void vWifiTask(void *pvParameters){
 void vClientTask(void *pvParameters){
     while(1){
         printf("Checking TCP Connection to Server\n");
-        checkServerConnection();
+        checkClientConnection();
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
 
-void message_handler(const char *message){
-    printf("Main Program Received: %s\n", message);
+void vSendDataTask(void *pvParameters){
+    while(1){
+        printf("Sending Data\n");
+        tcp_send_data("Testing");
+        vTaskDelay(pdMS_TO_TICKS(10000));
+    }
 }

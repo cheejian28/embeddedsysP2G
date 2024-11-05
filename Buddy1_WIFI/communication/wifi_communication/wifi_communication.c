@@ -9,20 +9,19 @@
 
 #include "wifi_communication.h"
 
-
-void check_connections(void);
-static void handle_wifi_reconnect(void);
-
-
 static bool wifi_connect(const char *ssid, const char *password){
-    if(cyw43_arch_init()){
+    static bool initialized = false;
+
+    if(!initialized && cyw43_arch_init()){
         printf("Failed to initialize\n");
         return false;
     }
+    initialized = true;
+
     cyw43_arch_enable_sta_mode();
 
     printf("Connecting to WIFI..\n");
-    if (cyw43_arch_wifi_connect_timeout_ms(ssid, password, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
+    if (cyw43_arch_wifi_connect_timeout_ms(ssid, password, CYW43_AUTH_WPA2_AES_PSK, 5000)) {
         printf("Failed to connect to WIFI using %s, %s\n", ssid, password);
         return false;
     } 
@@ -50,10 +49,6 @@ bool init_wifi(){
 //  FREERTOS TASK FOR WIFI
 //=======================================================
 
-#ifndef configMINIMAL_STACK_SIZE
-#define configMINIMAL_STACK_SIZE 128 // Or another appropriate size
-#endif
-
 char *w_ssid = NULL;
 char *w_password = NULL;
 
@@ -64,13 +59,12 @@ void set_ssid_password(char *s, char *p){
 
 
 void checkWifiConnection(){
-    // printf("Here: %u\n",cyw43_state.netif[0].ip_addr.addr);
-    if(!cyw43_state.netif[0].ip_addr.addr){
+    printf("\nHere: %u\n", cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) != CYW43_LINK_UP);
+    if(cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) != CYW43_LINK_UP){
         printf("[WIFI TASK] Attempting to re-connect to WIFI..\n");
+
         if(w_ssid && w_password && wifi_connect(w_ssid, w_password)){
             printf("[WIFI TASK] Connected to WIFI using %s, %s!\n", w_ssid, w_password);
-        }else if(wifi_connect(WIFI_SSID, WIFI_PASSWORD)){
-            printf("[WIFI TASK] Connected to WIFI using %s, %s!\n", WIFI_SSID, WIFI_PASSWORD);
         }else{
             printf("[WIFI TASK] Failed to connect to WIFI, retrying in 5 seconds\n");
         }
