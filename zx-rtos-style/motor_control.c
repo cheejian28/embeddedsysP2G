@@ -30,31 +30,26 @@
 #define MOTOR_B_IN2 4
 #define MOTOR_B_PWM 5 // right motor
 
-// #define CON_PIN1 20 // conditional 1
-// #define CON_PIN2 21 // conditional 2
-// #define CON_PIN3 22 // conditional 3
+#define CON_PIN1 20 // conditional 1
+#define CON_PIN2 21 // conditional 2
+#define CON_PIN3 22 // conditional 3
 #define DEBOUNCE_TIME_MS 20
 #define MOVE_DURATION_MS 10000
 #define PWM_FREQ 100.0f
-#define MAX_INTEGRAL 100.0f
+#define MAX_INTEGRAL 400.0f
 
 // Define macros for fmaxf and fminf
 #define fmaxf(a, b) ((a) > (b) ? (a) : (b))
 #define fminf(a, b) ((a) < (b) ? (a) : (b))
 
-TaskHandle_t moveTaskHandle;
-TaskHandle_t speedTaskHandle;
-TaskHandle_t ultrasonicTaskHandle;
-// TaskHandle_t printTaskHandle;
-
 // PID controller parameters
-float Kp_left = 0.1f;
-float Ki_left = 0.01f;
-float Kd_left = 0.0000f;
+float Kp_left = 0.03f;
+float Ki_left = 0.0001f;
+float Kd_left = 0.0001f;
 
-float Kp_right = 0.08f;
-float Ki_right = 0.01f;
-float Kd_right = 0.0000f;
+float Kp_right = 0.015f;
+float Ki_right = 0.0001f;
+float Kd_right = 0.0001f;
 
 float duty_cycle = 0.5f; // duty cycle %
 
@@ -69,8 +64,6 @@ uint32_t last_debounce_time_ms = 0; // Timestamp of the last state change
 
 bool is_moving = false;          // Flag to indicate if the car is moving
 absolute_time_t move_start_time; // Start time for the move duration
-
-bool turned_right = false;
 
 float cumulative_distance = 0.0;
 
@@ -168,12 +161,13 @@ float compute_pid(float setpoint, float current_motor_speed, float *integral, fl
 
     float control_signal = (Kp * error) + (Ki * (*integral)) + (Kd * derivative);
     *prev_error = error;
-    // printf("Current Speed: %f\n", current_motor_speed);
-    // printf("Error: %f\n", error);
+    printf("Setpoint: %f\n", setpoint);
+    printf("Current Speed: %f\n", current_motor_speed);
+    printf("Error: %f\n", error);
 
-    // printf("Integral: %f\n", *integral);
-    // printf("Derivative: %f\n", derivative);
-    // printf("Control Signal = %f\n", control_signal);
+    printf("Integral: %f\n", *integral);
+    printf("Derivative: %f\n", derivative);
+    printf("Control Signal = %f\n", control_signal);
 
     return control_signal;
 }
@@ -181,6 +175,14 @@ float compute_pid(float setpoint, float current_motor_speed, float *integral, fl
 // PWM setup function
 void setup_pwm(uint gpio, float freq, float duty_cycle)
 {
+    if (duty_cycle > 1.0f)
+    {
+        duty_cycle = 0.999f;
+    }
+    else if (duty_cycle < 0.0f)
+    {
+        duty_cycle = 0.0f;
+    }
 
     gpio_set_function(gpio, GPIO_FUNC_PWM);
     uint slice_num = pwm_gpio_to_slice_num(gpio);
@@ -192,92 +194,113 @@ void setup_pwm(uint gpio, float freq, float duty_cycle)
     pwm_set_wrap(slice_num, 65535);
     pwm_set_gpio_level(gpio, (uint16_t)(duty_cycle * 65535));
     pwm_set_enabled(slice_num, true);
-    // printf("PWM set on pin %d: Frequency = %.2f Hz, Duty cycle = %.2f%%\n", gpio, freq, duty_cycle * 100);
-}
-
-void reset_encoders()
-{
-    total_num_edge_l = 0;
-    total_num_edge_r = 0;
-    cumulative_distance_left = 0.0;
-    cumulative_distance_right = 0.0;
-    cumulative_distance = 0.0;
+    printf("PWM set on pin %d: Frequency = %.2f Hz, Duty cycle = %.2f%%\n", gpio, freq, duty_cycle * 100);
 }
 
 // Task to move the car
-void task_motor_speed(__unused void *params)
-{
-    TickType_t last_wake_time = xTaskGetTickCount();
+// void task_move(__unused void *params)
+// {
+//     while (true)
+//     {
+//         setup_pwm(MOTOR_A_PWM, PWM_FREQ, 0.5f);
+//         setup_pwm(MOTOR_B_PWM, PWM_FREQ, 0.8f);
+//         bool button_pressed_1 = !gpio_get(CON_PIN1);
+//         bool button_pressed_2 = !gpio_get(CON_PIN2);
 
-    while (true)
-    {
-        // Compute distance-based speed reduction factor
-        float speed_factor = 1.0f;
-        if (distance < 50.0f) // Adjust threshold as needed
-        {
-            // Reduce speed as distance decreases
-            speed_factor = distance / 50.0f; // Scale between 0 (0 cm) and 1 (50 cm)
-            speed_factor = fmaxf(speed_factor, 0.2f); // Minimum speed factor to avoid stopping
-        }
+//         if (button_pressed_1 && !button_pressed_2)
+//         {
+//             if (!is_moving)
+//             {
+//                 is_moving = true;
+//                 move_start_time = get_absolute_time();
+//                 move_forward();
+//             }
+//         }
+//         if (button_pressed_2 && !button_pressed_1)
+//         {
+//             if (!is_moving)
+//             {
+//                 is_moving = true;
+//                 move_start_time = get_absolute_time();
+//                 move_backward();
+//             }
+//         }
 
-        // PID controllers
-        float control_signal_a = compute_pid(setpoint, speedLeftEncoder, &integral_motor_A, &prev_error_motor_A, Kp_left, Ki_left, Kd_left);
-        float control_signal_b = compute_pid(setpoint, speedRightEncoder, &integral_motor_B, &prev_error_motor_B, Kp_right, Ki_right, Kd_right);
-
-        // Adjust duty cycles based on control signals and speed factor
-        float new_duty_cycle_a = (duty_cycle + control_signal_a) * speed_factor * 0.98;
-        float new_duty_cycle_b = (duty_cycle + control_signal_b) * speed_factor;
-
-        // Constrain duty cycles to valid range
-        new_duty_cycle_a = fminf(fmaxf(new_duty_cycle_a, 0.25f), 0.725f);
-        new_duty_cycle_b = fminf(fmaxf(new_duty_cycle_b, 0.25f), 0.8f);
-
-        // Apply the duty cycles
-        setup_pwm(MOTOR_A_PWM, PWM_FREQ, new_duty_cycle_a);
-        setup_pwm(MOTOR_B_PWM, PWM_FREQ, new_duty_cycle_b);
-
-        vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(20));
-    }
-}
+//         if (is_moving)
+//         {
+//             if (absolute_time_diff_us(move_start_time, get_absolute_time()) >= MOVE_DURATION_MS * 700)
+//             {
+//                 stop_motors();
+//                 is_moving = false;
+//             }
+//         }
+//         vTaskDelay(pdMS_TO_TICKS(10));
+//     }
+// }
 
 // Task to control speed using PID
-void task_move(__unused void *params)
+void task_speed(__unused void *params)
 {
+    // static int total_pulse_count_left = 0;
+    // static int total_pulse_count_right = 0;
+    // static double total_distance_left = 0.0;
+    // static double total_distance_right = 0.0;
     TickType_t last_wake_time = xTaskGetTickCount();
-    setup_pwm(MOTOR_A_PWM, PWM_FREQ, duty_cycle);
-    setup_pwm(MOTOR_B_PWM, PWM_FREQ, duty_cycle);
-    move_forward();
+
     while (true)
     {
-        cumulative_distance = (cumulative_distance_left + cumulative_distance_right) / 2;
+        bool button_pressed_1 = !gpio_get(CON_PIN1);
+        bool button_pressed_2 = !gpio_get(CON_PIN2);
 
-        if (distance < 20.0f && !turned_right)
+        if (button_pressed_1 && !button_pressed_2)
         {
-            stop_motors();
-            vTaskSuspend(speedTaskHandle);
-            setup_pwm(MOTOR_A_PWM, PWM_FREQ, 0.63f);
-            setup_pwm(MOTOR_B_PWM, PWM_FREQ, 0.7f);
-            
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            turn_right();
-            reset_encoders(); // Reset encoders after turning
-            
-            while (total_num_edge_l < 9)
-           {
-                // ...existing code...
+            if (!is_moving)
+            {
+                is_moving = true;
+                // move_start_time = get_absolute_time();
+                move_forward();
             }
-            stop_motors();
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            move_forward();
-            turned_right = true;
         }
-        else if (turned_right && cumulative_distance >= 90.0f)
+        if (button_pressed_2 && !button_pressed_1)
         {
-            stop_motors();
-            vTaskDelete(NULL);
+            if (!is_moving)
+            {
+                is_moving = true;
+                // move_start_time = get_absolute_time();
+                move_backward();
+            }
         }
-        // ...existing code...
-        vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(300));
+
+        if (is_moving)
+        {
+            cumulative_distance = (cumulative_distance_left + cumulative_distance_right) / 2;
+
+            if (cumulative_distance > 90)
+            {
+                stop_motors();
+                is_moving = false;
+            }
+            else
+            {
+                // PID controllers
+                float control_signal_a = compute_pid(setpoint, speedLeftEncoder, &integral_motor_A, &prev_error_motor_A, Kp_left, Ki_left, Kd_left);
+                float control_signal_b = compute_pid(setpoint, speedRightEncoder, &integral_motor_B, &prev_error_motor_B, Kp_right, Ki_right, Kd_right);
+
+                // Adjust duty cycles based on control signals
+                float new_duty_cycle_a = duty_cycle + control_signal_a;
+                float new_duty_cycle_b = duty_cycle + control_signal_b;
+
+                // Constrain duty cycles to valid range
+                new_duty_cycle_a = fminf(fmaxf(new_duty_cycle_a, 0.0f), 1.0f);
+                new_duty_cycle_b = fminf(fmaxf(new_duty_cycle_b, 0.0f), 1.0f);
+                // printf("new duty cycle computed");
+
+                setup_pwm(MOTOR_A_PWM, PWM_FREQ, new_duty_cycle_a);
+                setup_pwm(MOTOR_B_PWM, PWM_FREQ, new_duty_cycle_b);
+            }
+        }
+
+        vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(100));
     }
 }
 
@@ -292,14 +315,14 @@ void task_print(__unused void *params)
         // Print wheel speeds
         // printf("Left Wheel Speed: %.2f cm/s\n", speedLeftEncoder);
         // printf("Right Wheel Speed: %.2f cm/s\n", speedRightEncoder);
-        // printf("Total Left Pulses: %d\n", total_num_edge_l);
-        // printf("Total Right Pulses: %d\n", total_num_edge_r);
-        // printf("Cumulative Distance: %.2f cm\n", cumulative_distance);
+        printf("Total Left Pulses: %d\n", total_num_edge_l);
+        printf("Total Right Pulses: %d\n", total_num_edge_r);
+        printf("Cumulative Distance: %.2f cm\n", cumulative_distance);
 
         // Print total distance traveled
         // printf("Total Distance Left: %.2f cm\n", cumulative_distance_left);
         // printf("Total Distance Right: %.2f cm\n", cumulative_distance_right);
-        printf("UltraSonic Distance: %.2f cm\n", distance);
+        // printf("UltraSonic Distance: %.2f cm\n", distance);
 
         vTaskDelay(pdMS_TO_TICKS(1000)); // Adjust the delay as needed
     }
@@ -308,10 +331,15 @@ void task_print(__unused void *params)
 // Launch function to start tasks
 void vLaunch()
 {
-    xTaskCreate(task_move, "MoveTask", 2048, NULL, 3, &moveTaskHandle);
-    xTaskCreate(task_motor_speed, "SpeedTask", 2048, NULL, 2, &speedTaskHandle);
-    xTaskCreate(ultrasonic_task, "UltrasonicTask", 2048, NULL, 2, &ultrasonicTaskHandle);
-    // xTaskCreate(task_print, "PrintTask", 2048, NULL, 1, &printTaskHandle);
+    // TaskHandle_t moveTaskHandle;
+    TaskHandle_t speedTaskHandle;
+    // TaskHandle_t ultrasonicTaskHandle;
+    TaskHandle_t printTaskHandle;
+
+    // xTaskCreate(task_move, "MoveTask", configMINIMAL_STACK_SIZE, NULL, 4, &moveTaskHandle);
+    xTaskCreate(task_speed, "SpeedTask", 2048, NULL, 2, &speedTaskHandle);
+    // xTaskCreate(ultrasonic_task, "UltrasonicTask", 2048, NULL, 3, &ultrasonicTaskHandle);
+    xTaskCreate(task_print, "PrintTask", 2048, NULL, 1, &printTaskHandle);
 
     // Start the scheduler
     vTaskStartScheduler();
@@ -333,7 +361,7 @@ int main()
 
     // Initialize wheel encoders
     setup_encoder();
-    setUpUltrasonicPins();
+    // setupUltrasonicPins();
 
     // Initialize cumulative distance
 

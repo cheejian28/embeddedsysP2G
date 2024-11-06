@@ -1,5 +1,7 @@
 add_executable(motor_control
         motor_control.c
+        wheel_encoder.c
+        ultrasonic.c
         )
 target_include_directories(motor_control PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
