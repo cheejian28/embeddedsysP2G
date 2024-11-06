@@ -15,10 +15,8 @@
 bool init_wifi();
 bool init_wifi_with_ssid_password(const char *ssid, const char *password);
 
-// FREERTOS FUNCTIONS
+// FREERTOS FUNCTIONS SSID AND PASSWORD MUST BE SET BEFORE WIFI CONNECTION
 void set_ssid_password(char *ssid, char *password);
 void checkWifiConnection();
 
-// void freertos_init_wifi_tasks();
-// void freertos_wifi_task(void *pvParameters);
 #endif

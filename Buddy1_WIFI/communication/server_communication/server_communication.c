@@ -47,7 +47,7 @@ static err_t tcp_server_close(void *arg) {
         tcp_close(state->server_pcb);
         state->server_pcb = NULL;
     }
-    printf("[TCP Server] TCP Connection has been closed!");
+    printf("[TCP Server] TCP Connection has been closed!\n");
     return err;
 }
 
@@ -232,22 +232,20 @@ bool start_tcp_server(message_callback_t cb) {
 //  FREERTOS TASK FOR TCP Server
 //=======================================================
 
-#ifndef configMINIMAL_STACK_SIZE
-#define configMINIMAL_STACK_SIZE 128 // Or another appropriate size
-#endif
-
 void set_callback(message_callback_t cb){
     message_callback = cb;
 }
 
 void checkServerConnection(){
-    sleep_ms(5000);
-    if(!state || state->complete){
-        printf("[TCP Server TASK] Attempting to start Server..\n");
-        if(start_tcp_server(message_callback)){
-            printf("[TCP Server TASK] Server has successfully started!\n");
-        }else{
-            printf("[TCP Server TASK] Failed to start Server, retrying in 5 seconds\n");
+    bool isWifiConnected = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP;
+
+    if(!isWifiConnected){
+        if (state && state->complete == false){
+            state -> complete = true;
+            tcp_server_close(state);
         }
+    }else if(isWifiConnected && (!state || state->complete)){ // Tries to Start Server only if Wifi is connected
+        printf("[TCP Server TASK] Attempting to start Server..\n");
+        start_tcp_server(message_callback);
     }
 }

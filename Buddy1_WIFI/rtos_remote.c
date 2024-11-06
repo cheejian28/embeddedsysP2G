@@ -20,7 +20,7 @@ int main() {
     set_ssid_password("SimPhone", "a1234567");
     xTaskCreate(vWifiTask, "Wifi Task", 256, NULL, 1, NULL);
 
-    set_ip_address("172.20.10.2");
+    set_ip_address("172.20.10.4");
     xTaskCreate(vClientTask, "TCP Client Task", 256, NULL, 1, NULL);
 
     xTaskCreate(vSendDataTask, "Send Data Task", 256, NULL, 1, NULL);
@@ -34,7 +34,6 @@ int main() {
 
 void vWifiTask(void *pvParameters){
     while(1){
-        printf("Checking Wifi Connection\n");
         checkWifiConnection();
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
@@ -42,7 +41,6 @@ void vWifiTask(void *pvParameters){
 
 void vClientTask(void *pvParameters){
     while(1){
-        printf("Checking TCP Connection to Server\n");
         checkClientConnection();
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
@@ -51,7 +49,7 @@ void vClientTask(void *pvParameters){
 void vSendDataTask(void *pvParameters){
     while(1){
         printf("Sending Data\n");
-        tcp_send_data("Testing");
+        tcp_send_data("Sending Testing Data");
         vTaskDelay(pdMS_TO_TICKS(10000));
     }
 }

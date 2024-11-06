@@ -8,7 +8,7 @@
 
 // Function prototypes
 void vWifiTask(void *pvParameters);
-void vClientTask(void *pvParameters);
+void vServerTask(void *pvParameters);
 
 void message_handler(const char *message);
 
@@ -21,9 +21,8 @@ int main() {
     set_ssid_password("SimPhone", "a1234567");
     xTaskCreate(vWifiTask, "Wifi Task", 256, NULL, 1, NULL);
 
-    // set_ip_address("172.20.10.3");
-    // set_callback(message_handler);
-    // xTaskCreate(vClientTask, "TCP Client Task", 256, NULL, 1, NULL);
+    set_callback(message_handler);
+    xTaskCreate(vServerTask, "TCP Server Task", 256, NULL, 1, NULL);
 
     // Start the scheduler
     vTaskStartScheduler();
@@ -34,15 +33,15 @@ int main() {
 
 void vWifiTask(void *pvParameters){
     while(1){
-        printf("Checking Wifi Connection\n");
+        // printf("Checking Wifi Connection\n");
         checkWifiConnection();
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
 
-void vClientTask(void *pvParameters){
+void vServerTask(void *pvParameters){
     while(1){
-        printf("Checking TCP Connection to Server\n");
+        // printf("Checking TCP Connection to Server\n");
         checkServerConnection();
         vTaskDelay(pdMS_TO_TICKS(5000));
     }

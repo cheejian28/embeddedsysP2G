@@ -61,6 +61,10 @@ bool tcp_send_data(const char *data) {
 static err_t tcp_client_close(void *arg) {
     state = (TCP_CLIENT_T*)arg;
     err_t err = ERR_OK;
+
+    state->complete = true;
+    state->connected = false;
+
     if (state->tcp_pcb != NULL) {
         tcp_arg(state->tcp_pcb, NULL);
         tcp_poll(state->tcp_pcb, NULL, 0);
@@ -79,17 +83,17 @@ static err_t tcp_client_close(void *arg) {
 }
 
 // Called with results of operation
-static err_t tcp_result(void *arg, int status) {
-    state = (TCP_CLIENT_T*)arg;
-    if (status == 0) {
-        printf("[TCP Client] test success\n");
-    } else {
-        printf("[TCP Client] test failed %d\n", status);
-    }
-    state->complete = true;
-    state->connected = false;
-    return tcp_client_close(arg);
-}
+// static err_t tcp_result(void *arg, int status) {
+//     state = (TCP_CLIENT_T*)arg;
+//     if (status == 0) {
+//         printf("[TCP Client] test success\n");
+//     } else {
+//         printf("[TCP Client] test failed %d\n", status);
+//     }
+//     state->complete = true;
+//     state->connected = false;
+//     return tcp_client_close(arg);
+// }
 
 // static err_t tcp_client_sent(void *arg, struct tcp_pcb *tpcb, u16_t len) {
 //     state = (TCP_CLIENT_T*)arg;
@@ -117,7 +121,7 @@ static err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err) {
     state = (TCP_CLIENT_T*)arg;
     if (err != ERR_OK) {
         printf("[TCP Client] connect failed %d\n", err);
-        return tcp_result(arg, err);
+        return tcp_client_close(arg);
     }
     state->connected = true;
 
@@ -141,7 +145,7 @@ static err_t tcp_client_poll(void *arg, struct tcp_pcb *tpcb) {
 static void tcp_client_err(void *arg, err_t err) {
     if (err != ERR_ABRT) {
         printf("[TCP Client] tcp_client_err %d\n", err);
-        tcp_result(arg, err);
+        tcp_client_close(arg);
     }
 }
 
@@ -210,7 +214,7 @@ static bool tcp_client_open(void *arg) {
     err_t err = tcp_connect(state->tcp_pcb, &state->remote_addr, TCP_PORT, tcp_client_connected);
     cyw43_arch_lwip_end();
 
-    printf("Result from connection: %d\n", err);
+    // printf("Result from connection: %d\n", err);
 
     return err == ERR_OK;
 }
@@ -241,7 +245,7 @@ bool init_tcp_client_with_ip(const char *ip_address){
 
     if(!tcp_client_open(state)){
         printf("[TCP Client] Failed to connect to TCP Server\n");
-        tcp_result(state, -1);
+        tcp_client_close(state);
         return false;
     }
 
@@ -271,12 +275,6 @@ void set_ip_address(char *ipaddr){
 void checkClientConnection(){
     if(!state || !state->connected){
         printf("[TCP Client TASK] Attempting to re-connect to Server..\n");
-        if(ip_address && init_tcp_client_with_ip(ip_address)){
-            printf("[TCP Client TASK] Connected to Server using %s!\n", ip_address);
-        }else if(init_tcp_client()){
-            printf("[TCP Client TASK] Connected to Server using %s!\n", IP_ADDRESS);
-        }else{
-            printf("[TCP Client TASK] Failed to connect to Server, retrying in 5 seconds\n");
-        }
+        init_tcp_client_with_ip(ip_address);
     }
 }
