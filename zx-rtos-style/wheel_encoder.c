@@ -94,10 +94,10 @@ void gpio_callback(uint gpio, uint32_t events)
         // Optional: Print on every right pulse for debugging
         // printf("Right Encoder Pulse Detected. Total Right Pulses: %d\n", total_num_edge_r);
     }
-    else if (gpio == ECHO_PIN)
-    {
-        computePulse(events);
-    }
+    // else if (gpio == ECHO_PIN)
+    // {
+    //     computePulse(events);
+    // }
 }
 
 void setup_encoder()

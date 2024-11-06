@@ -13,8 +13,8 @@
 #define WHEEL_DIAMETER 6.5f
 #define WHEEL_CIRCUMFERENCE 21.8f
 
-static volatile int total_num_edge_l = 0;
-static volatile int total_num_edge_r = 0;
+extern volatile int total_num_edge_l;
+extern volatile int total_num_edge_r;
 
 extern volatile float speedLeftEncoder;
 extern volatile float speedRightEncoder;

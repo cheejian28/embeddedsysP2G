@@ -36,23 +36,24 @@
 #define DEBOUNCE_TIME_MS 20
 #define MOVE_DURATION_MS 10000
 #define PWM_FREQ 100.0f
+#define MAX_INTEGRAL 400.0f
 
 // Define macros for fmaxf and fminf
 #define fmaxf(a, b) ((a) > (b) ? (a) : (b))
 #define fminf(a, b) ((a) < (b) ? (a) : (b))
 
 // PID controller parameters
-float Kp_left = 0.007f;
+float Kp_left = 0.03f;
 float Ki_left = 0.0001f;
 float Kd_left = 0.0001f;
 
-float Kp_right = 0.007f;
+float Kp_right = 0.015f;
 float Ki_right = 0.0001f;
 float Kd_right = 0.0001f;
 
 float duty_cycle = 0.5f; // duty cycle %
 
-float setpoint = 180.0;         // Desired speed (cm/s)
+float setpoint = 25.0;          // Desired speed (cm/s)
 float integral_motor_A = 0.0;   // Integral term for left motor
 float integral_motor_B = 0.0;   // Integral term for right motor
 float prev_error_motor_A = 0.0; // Previous error for left motor
@@ -63,6 +64,8 @@ uint32_t last_debounce_time_ms = 0; // Timestamp of the last state change
 
 bool is_moving = false;          // Flag to indicate if the car is moving
 absolute_time_t move_start_time; // Start time for the move duration
+
+float cumulative_distance = 0.0;
 
 // Function prototypes
 bool debounce(bool new_state);
@@ -147,8 +150,24 @@ float compute_pid(float setpoint, float current_motor_speed, float *integral, fl
         derivative = error - *prev_error;
     }
 
+    if (*integral > MAX_INTEGRAL)
+    {
+        *integral = MAX_INTEGRAL;
+    }
+    else if (*integral < -MAX_INTEGRAL)
+    {
+        *integral = -MAX_INTEGRAL;
+    }
+
     float control_signal = (Kp * error) + (Ki * (*integral)) + (Kd * derivative);
     *prev_error = error;
+    printf("Setpoint: %f\n", setpoint);
+    printf("Current Speed: %f\n", current_motor_speed);
+    printf("Error: %f\n", error);
+
+    printf("Integral: %f\n", *integral);
+    printf("Derivative: %f\n", derivative);
+    printf("Control Signal = %f\n", control_signal);
 
     return control_signal;
 }
@@ -158,7 +177,7 @@ void setup_pwm(uint gpio, float freq, float duty_cycle)
 {
     if (duty_cycle > 1.0f)
     {
-        duty_cycle = 1.0f;
+        duty_cycle = 0.999f;
     }
     else if (duty_cycle < 0.0f)
     {
@@ -175,6 +194,7 @@ void setup_pwm(uint gpio, float freq, float duty_cycle)
     pwm_set_wrap(slice_num, 65535);
     pwm_set_gpio_level(gpio, (uint16_t)(duty_cycle * 65535));
     pwm_set_enabled(slice_num, true);
+    printf("PWM set on pin %d: Frequency = %.2f Hz, Duty cycle = %.2f%%\n", gpio, freq, duty_cycle * 100);
 }
 
 // Task to move the car
@@ -229,8 +249,6 @@ void task_speed(__unused void *params)
 
     while (true)
     {
-        setup_pwm(MOTOR_A_PWM, PWM_FREQ, 0.6f);
-        setup_pwm(MOTOR_B_PWM, PWM_FREQ, 0.8f);
         bool button_pressed_1 = !gpio_get(CON_PIN1);
         bool button_pressed_2 = !gpio_get(CON_PIN2);
 
@@ -239,7 +257,7 @@ void task_speed(__unused void *params)
             if (!is_moving)
             {
                 is_moving = true;
-                move_start_time = get_absolute_time();
+                // move_start_time = get_absolute_time();
                 move_forward();
             }
         }
@@ -248,14 +266,16 @@ void task_speed(__unused void *params)
             if (!is_moving)
             {
                 is_moving = true;
-                move_start_time = get_absolute_time();
+                // move_start_time = get_absolute_time();
                 move_backward();
             }
         }
 
         if (is_moving)
         {
-            if (absolute_time_diff_us(move_start_time, get_absolute_time()) >= MOVE_DURATION_MS * 700)
+            cumulative_distance = (cumulative_distance_left + cumulative_distance_right) / 2;
+
+            if (cumulative_distance > 90)
             {
                 stop_motors();
                 is_moving = false;
@@ -295,15 +315,16 @@ void task_print(__unused void *params)
         // Print wheel speeds
         // printf("Left Wheel Speed: %.2f cm/s\n", speedLeftEncoder);
         // printf("Right Wheel Speed: %.2f cm/s\n", speedRightEncoder);
-        // printf("Total Left Pulses: %d\n", total_num_edge_l);
-        // printf("Total Right Pulses: %d\n", total_num_edge_r);
+        printf("Total Left Pulses: %d\n", total_num_edge_l);
+        printf("Total Right Pulses: %d\n", total_num_edge_r);
+        printf("Cumulative Distance: %.2f cm\n", cumulative_distance);
 
         // Print total distance traveled
         // printf("Total Distance Left: %.2f cm\n", cumulative_distance_left);
         // printf("Total Distance Right: %.2f cm\n", cumulative_distance_right);
-        printf("UltraSonic Distance: %.2f cm\n", distance);
+        // printf("UltraSonic Distance: %.2f cm\n", distance);
 
-        vTaskDelay(pdMS_TO_TICKS(500)); // Adjust the delay as needed
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Adjust the delay as needed
     }
 }
 
@@ -312,12 +333,12 @@ void vLaunch()
 {
     // TaskHandle_t moveTaskHandle;
     TaskHandle_t speedTaskHandle;
-    TaskHandle_t ultrasonicTaskHandle;
+    // TaskHandle_t ultrasonicTaskHandle;
     TaskHandle_t printTaskHandle;
 
     // xTaskCreate(task_move, "MoveTask", configMINIMAL_STACK_SIZE, NULL, 4, &moveTaskHandle);
     xTaskCreate(task_speed, "SpeedTask", 2048, NULL, 2, &speedTaskHandle);
-    xTaskCreate(ultrasonic_task, "UltrasonicTask", 2048, NULL, 3, &ultrasonicTaskHandle);
+    // xTaskCreate(ultrasonic_task, "UltrasonicTask", 2048, NULL, 3, &ultrasonicTaskHandle);
     xTaskCreate(task_print, "PrintTask", 2048, NULL, 1, &printTaskHandle);
 
     // Start the scheduler
@@ -340,7 +361,9 @@ int main()
 
     // Initialize wheel encoders
     setup_encoder();
-    setupUltrasonicPins();
+    // setupUltrasonicPins();
+
+    // Initialize cumulative distance
 
     // Start FreeRTOS
     const char *rtos_name = "FreeRTOS";
