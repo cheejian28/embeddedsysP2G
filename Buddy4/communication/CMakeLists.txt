@@ -1,0 +1,3 @@
+add_subdirectory(wifi_communication)
+add_subdirectory(client_communication)
+add_subdirectory(server_communication)
