@@ -7,11 +7,12 @@
 #include <stdio.h>
 
 #define TIMEOUT 50000
-#define DEBOUNCE 100
 
+const int debounce_time = 100;
 volatile absolute_time_t rise_time;
 volatile absolute_time_t fall_time;
-volatile float distance = 0.0f;
+volatile float distance=100.0f;
+
 
 void setUpUltrasonicPins()
 {
@@ -22,7 +23,9 @@ void setUpUltrasonicPins()
     gpio_init(ECHO_PIN);
     gpio_set_dir(ECHO_PIN, GPIO_IN);
     gpio_pull_down(ECHO_PIN);
-}
+
+    // Configure GPIO interrupt for both rising and falling edges
+    }
 
 void triggerUltraSonicPins()
 {
@@ -38,17 +41,38 @@ void handle_echo(uint32_t events)
     {
         rise_time = get_absolute_time();
     }
-    else if (events & GPIO_IRQ_EDGE_FALL)
+    if (events & GPIO_IRQ_EDGE_FALL)
     {
         fall_time = get_absolute_time();
-        uint64_t pulse_duration = absolute_time_diff_us(rise_time, fall_time);
-        if (pulse_duration > TIMEOUT)
+    }
+
+    if(!is_nil_time(fall_time) && !is_nil_time(rise_time))
+    {
+        uint64_t time_diff = absolute_time_diff_us(rise_time, fall_time);
+        printf("Rise time: %lld\n", to_us_since_boot(rise_time));
+        printf("Fall time: %lld\n", to_us_since_boot(fall_time));
+        printf("abs time diff: %llu\n", time_diff);
+           
+        if(time_diff < debounce_time)
         {
-            printf("Error: Timeout\n");
+            printf("Invalid pulse width\n");
+            rise_time = nil_time;
+            fall_time = nil_time;
             return;
         }
-        distance = (pulse_duration * 0.0343f) / 2.0f;
-        // printf("Distance: %.2f cm\n", distance);
+        if(time_diff > TIMEOUT)
+        {
+            printf("Timeout\n");
+            rise_time = nil_time;
+            fall_time = nil_time;
+            return;
+        }
+
+        uint64_t pulse_width = time_diff;
+        distance = (pulse_width * 0.0343f) / 2.0f;
+        printf("Distance: %.2f cm\n", distance); // Debug print
+        rise_time = nil_time;
+        fall_time = nil_time;
     }
 }
 

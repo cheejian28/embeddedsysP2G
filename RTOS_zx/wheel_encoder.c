@@ -2,12 +2,7 @@
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
 #include "ultrasonic.h"
-
-#define ENCODER_LEFT 7
-#define ENCODER_RIGHT 8
-#define PPR 20
-#define WHEEL_DIAMETER 6.5f
-#define WHEEL_CIRCUMFERENCE 21.8f
+#include "wheel_encoder.h"
 
 volatile int total_num_edge_l = 0;
 volatile int total_num_edge_r = 0;
@@ -94,10 +89,10 @@ void gpio_callback(uint gpio, uint32_t events)
         // Optional: Print on every right pulse for debugging
         // printf("Right Encoder Pulse Detected. Total Right Pulses: %d\n", total_num_edge_r);
     }
-    // else if (gpio == ECHO_PIN)
-    // {
-    //     computePulse(events);
-    // }
+    else if (gpio == ECHO_PIN)
+    {
+        handle_echo(events);
+    }
 }
 
 void setup_encoder()
