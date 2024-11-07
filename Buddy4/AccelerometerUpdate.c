@@ -117,7 +117,7 @@ void generate_command(int16_t x, int16_t y, float *speed_x, float *speed_y, int1
     if (strcmp(command, last_command) != 0) {
         printf("Command: %s\n", command);
         tcp_send_data(command);
-        strncpy(last_command, command, sizeof(command));  // Update last_command
+        strncpy(last_command, command, sizeof(command)); 
     }
 }
 
@@ -133,8 +133,15 @@ float calculate_speed(int16_t accel, int16_t *prev_accel, float *speed, float ti
 int main() {
     stdio_init_all();
     i2c_init_gy511(); 
-    init_wifi_with_ssid_password("SimPhone","a1234567");
-    init_tcp_client_with_ip("172.20.10.2");
+
+    set_ssid_password("SimPhone", "a1234567");
+    checkWifiConnection();
+
+    set_ip_address("172.20.10.2");
+    checkClientConnection();
+
+    // init_wifi_with_ssid_password("SimPhone","a1234567");
+    // init_tcp_client_with_ip("172.20.10.2");
 
     int16_t x, y, z;
     int16_t x_offset = 0, y_offset = 0, z_offset = 0;
@@ -155,6 +162,9 @@ int main() {
 
         //printf("Current X: %d, Y: %d, Z: %d, Speed X: %.2f, Speed Y: %.2f\n", x, y, z, speed_x, speed_y);
         generate_command(x, y, &speed_x, &speed_y, noise_x, noise_y, last_command);
+
+        checkWifiConnection();
+        checkClientConnection();
 
         sleep_ms(500);
     }

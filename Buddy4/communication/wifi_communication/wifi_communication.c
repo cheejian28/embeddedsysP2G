@@ -59,7 +59,7 @@ void set_ssid_password(char *s, char *p){
 
 
 void checkWifiConnection(){
-    printf("\nHere: %u\n", cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) != CYW43_LINK_UP);
+    // printf("\nHere: %u\n", cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) != CYW43_LINK_UP);
     if(cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) != CYW43_LINK_UP){
         printf("[WIFI TASK] Attempting to re-connect to WIFI..\n");
 
