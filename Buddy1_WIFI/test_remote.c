@@ -20,17 +20,17 @@ int main(){
     set_ssid_password("SimPhone", "a1234567");
     checkWifiConnection();
 
-    set_ip_address("172.20.10.3");
+    set_ip_address("172.20.10.7");
     checkClientConnection();
 
 
     while(1){
         if(!gpio_get(FORWARD_BUTTON_PIN)){
-            tcp_send_data("forward\n");
+            tcp_send_data("forward");
         }else if(!gpio_get(LEFT_BUTTON_PIN)){
-            tcp_send_data("left\n");
+            tcp_send_data("left");
         }else if(!gpio_get(RIGHT_BUTTON_PIN)){
-            tcp_send_data("right\n");
+            tcp_send_data("right");
         }
 
         checkWifiConnection();

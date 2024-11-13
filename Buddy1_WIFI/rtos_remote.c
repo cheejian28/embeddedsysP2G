@@ -20,7 +20,7 @@ int main() {
     set_ssid_password("SimPhone", "a1234567");
     xTaskCreate(vWifiTask, "Wifi Task", 256, NULL, 1, NULL);
 
-    set_ip_address("172.20.10.4");
+    set_ip_address("172.20.10.7");
     xTaskCreate(vClientTask, "TCP Client Task", 256, NULL, 1, NULL);
 
     xTaskCreate(vSendDataTask, "Send Data Task", 256, NULL, 1, NULL);
