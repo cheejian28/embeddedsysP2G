@@ -26,6 +26,9 @@ typedef struct TCP_CLIENT_T_ {
 
 
 static TCP_CLIENT_T *state = NULL;
+char *ip_address = NULL;
+
+static void free_tcp_client_state();
 
 bool tcp_send_data(const char *data) {
     if (!state || !state->connected) {
@@ -79,6 +82,8 @@ static err_t tcp_client_close(void *arg) {
         }
         state->tcp_pcb = NULL;
     }
+
+    free_tcp_client_state();
     return err;
 }
 
@@ -230,6 +235,13 @@ static TCP_CLIENT_T* tcp_client_init(const char *ip_address) {
     return state;
 }
 
+static void free_tcp_client_state() {
+    if (state) {
+        free(state);  // Free the previously allocated memory
+        state = NULL; // Null the pointer to prevent use after free
+    }
+}
+
 bool init_tcp_client_with_ip(const char *ip_address){
 
     if(state && state->connected){
@@ -257,16 +269,7 @@ bool init_tcp_client(){
     return init_tcp_client_with_ip(IP_ADDRESS);
 }
 
-//=======================================================
-//  FREERTOS TASK FOR TCP Client
-//=======================================================
 
-#ifndef configMINIMAL_STACK_SIZE
-#define configMINIMAL_STACK_SIZE 128 // Or another appropriate size
-#endif
-
-
-char *ip_address = NULL;
 
 void set_ip_address(char *ipaddr){
     ip_address = ipaddr;

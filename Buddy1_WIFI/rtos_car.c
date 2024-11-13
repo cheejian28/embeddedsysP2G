@@ -48,5 +48,6 @@ void vServerTask(void *pvParameters){
 }
 
 void message_handler(const char *message){
+    printf("\033[2J\033[H");
     printf("Main Program Received: %s\n", message);
 }

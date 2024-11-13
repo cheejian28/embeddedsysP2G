@@ -122,7 +122,7 @@ err_t tcp_server_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
             message_callback(message);
         }
 
-        printf("[TCP Server] Received message: %s\n", message);
+        // printf("[TCP Server] Received message: %s\n", message);
     }
 
     // Receive the buffer
