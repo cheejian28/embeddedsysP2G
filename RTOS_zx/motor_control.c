@@ -225,12 +225,12 @@ void task_motor_speed(__unused void *params)
         float control_signal_b = compute_pid(setpoint, speedRightEncoder, &integral_motor_B, &prev_error_motor_B, Kp_right, Ki_right, Kd_right);
 
         // Adjust duty cycles based on control signals and speed factor
-        float new_duty_cycle_a = (duty_cycle + control_signal_a) * speed_factor;
+        float new_duty_cycle_a = (duty_cycle + control_signal_a) * speed_factor * 0.98;
         float new_duty_cycle_b = (duty_cycle + control_signal_b) * speed_factor;
 
         // Constrain duty cycles to valid range
         new_duty_cycle_a = fminf(fmaxf(new_duty_cycle_a, 0.25f), 0.725f);
-        new_duty_cycle_b = fminf(fmaxf(new_duty_cycle_b, 0.25f), 0.775f);
+        new_duty_cycle_b = fminf(fmaxf(new_duty_cycle_b, 0.25f), 0.8f);
 
         // Apply the duty cycles
         setup_pwm(MOTOR_A_PWM, PWM_FREQ, new_duty_cycle_a);
@@ -255,23 +255,19 @@ void task_move(__unused void *params)
         {
             stop_motors();
             vTaskSuspend(speedTaskHandle);
-            setup_pwm(MOTOR_A_PWM, PWM_FREQ, 0.73f); //0.73
-            setup_pwm(MOTOR_B_PWM, PWM_FREQ, 0.7f);  //0.7
+            setup_pwm(MOTOR_A_PWM, PWM_FREQ, 0.63f);
+            setup_pwm(MOTOR_B_PWM, PWM_FREQ, 0.7f);
             
             vTaskDelay(pdMS_TO_TICKS(1000));
             turn_right();
             reset_encoders(); // Reset encoders after turning
             
-            while (total_num_edge_l < 10)
-            {
+            while (total_num_edge_l < 9)
+           {
                 // ...existing code...
             }
-            reset_encoders(); // Reset encoders after turning
             stop_motors();
-            setup_pwm(MOTOR_A_PWM, PWM_FREQ, duty_cycle);
-            setup_pwm(MOTOR_B_PWM, PWM_FREQ, duty_cycle);
             vTaskDelay(pdMS_TO_TICKS(1000));
-            vTaskResume(speedTaskHandle);  // Resume the speed task
             move_forward();
             turned_right = true;
         }
