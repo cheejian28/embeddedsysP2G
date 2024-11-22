@@ -11,6 +11,7 @@
 
 #include "wifi_communication.h"
 #include "udp_server_communication.h"
+#include "udp_client_communication.h"
 #include "ultrasonic.h"
 #include "wheel_encoder.h"
 
@@ -79,6 +80,7 @@ TaskHandle_t moveTaskHandle;
 TaskHandle_t speedTaskHandle;
 TaskHandle_t ultrasonicTaskHandle;
 TaskHandle_t serverTaskHandle;
+TaskHandle_t clientTaskHandle;
 // TaskHandle_t printTaskHandle;
 
 // Function prototypes
@@ -139,6 +141,20 @@ void vServerTask(void *pvParameters){
         if(isConnected){
             printf("[UDP Server Task] Connected to Server! Suspending Task\n");
             vTaskSuspend(serverTaskHandle);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+}
+
+void vClientTask(void *pvParameters){
+    bool isConnected = false;
+    while(1){
+        // printf("Checking TCP Connection to Server\n");
+        isConnected = init_udp_client("172.20.10.9", 42069);
+        if(isConnected){
+            printf("[UDP Server Task] Failed Client Task\n");
+            vTaskSuspend(clientTaskHandle);
         }
 
         vTaskDelay(pdMS_TO_TICKS(5000));
@@ -462,7 +478,8 @@ void vLaunch()
     xTaskCreate(ultrasonic_task, "UltrasonicTask", 2048, NULL, 5, &ultrasonicTaskHandle);
 
     xTaskCreate(vWifiTask, "Wifi Task", 256, NULL, 1, NULL);
-    xTaskCreate(vServerTask, "TCP Server Task", 256, NULL, 1, &serverTaskHandle);
+    xTaskCreate(vServerTask, "UDP Server Task", 256, NULL, 1, &serverTaskHandle);
+    // xTaskCreate(vClientTask, "UDP Client Task", 256, NULL, 1, &clientTaskHandle);
     // xTaskCreate(task_print, "PrintTask", 2048, NULL, 1, &printTaskHandle);
 
     vTaskStartScheduler();
