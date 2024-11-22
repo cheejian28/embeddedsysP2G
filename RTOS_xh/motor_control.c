@@ -10,7 +10,7 @@
 #include "task.h"
 
 #include "wifi_communication.h"
-#include "server_communication.h"
+#include "udp_server_communication.h"
 #include "ultrasonic.h"
 #include "wheel_encoder.h"
 
@@ -59,7 +59,7 @@ float Kd_right = 0.0001f;
 float duty_cycle = 0.5f; // duty cycle %
 bool is_speed_control_active = true;
 
-float setpoint = 10.0;          // Desired speed (cm/s)
+float setpoint = 30.0;          // Desired speed (cm/s)
 float integral_motor_A = 0.0;   // Integral term for left motor
 float integral_motor_B = 0.0;   // Integral term for right motor
 float prev_error_motor_A = 0.0; // Previous error for left motor
@@ -70,7 +70,7 @@ float prev_error_motor_B = 0.0; // Previous error for right motor
 
 float cumulative_distance = 0.0;
 
-char action_received[1024];
+char action_received[128];
 
 char direction[5];
 float speed = 0;
@@ -78,6 +78,7 @@ float speed = 0;
 TaskHandle_t moveTaskHandle;
 TaskHandle_t speedTaskHandle;
 TaskHandle_t ultrasonicTaskHandle;
+TaskHandle_t serverTaskHandle;
 // TaskHandle_t printTaskHandle;
 
 // Function prototypes
@@ -131,9 +132,15 @@ void vWifiTask(void *pvParameters){
 }
 
 void vServerTask(void *pvParameters){
+    bool isConnected = false;
     while(1){
         // printf("Checking TCP Connection to Server\n");
-        checkServerConnection();
+        isConnected = init_udp_server(42069, message_handler);
+        if(isConnected){
+            printf("[UDP Server Task] Connected to Server! Suspending Task\n");
+            vTaskSuspend(serverTaskHandle);
+        }
+
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
@@ -320,7 +327,6 @@ void task_move(__unused void *params)
         // {
         //     move_forward();
         // }
-
         cumulative_distance = (cumulative_distance_left + cumulative_distance_right) / 2;
 
         switch (robot_state)
@@ -329,12 +335,10 @@ void task_move(__unused void *params)
                 gpio_put(LED_PIN1, 1);
                 gpio_put(LED_PIN2, 0);
                 is_speed_control_active = true;
-                printf("Action Received: %s\n", action_received);
+                // printf("Action Received: %s\n", action_received);
                 sscanf(action_received, "%s %f%%", direction, &speed);
 
-
-
-                printf("Parsed Direction: %s, Speed: %f\n", direction, speed);
+                printf("Moving Direction: %s, Speed: %f\n", direction, speed);
                 
                 if(strcmp(direction, "f") == 0){
                     move_forward();
@@ -410,10 +414,19 @@ void ultrasonic_task(void *pvParameters)
         triggerUltraSonicPins();
         vTaskDelay(pdMS_TO_TICKS(300)); // Wait for echo
         
-        if (distance < 20.0f)
+        if (distance < 30.0f)
         {
             robot_state = STATE_STOP;
+            printf("Obstacle detected! Stopping the robot\n");
+            vTaskDelay(pdMS_TO_TICKS(2000)); // Wait for 1 second
+            robot_state = STATE_REMOTE;
+            vTaskDelay(pdMS_TO_TICKS(3000)); // Wait for 1 second
         }
+        // else
+        // {
+        //     robot_state = STATE_REMOTE;
+        //     // printf("Resumed remote state");
+        // }
     }
 }
 
@@ -449,7 +462,7 @@ void vLaunch()
     xTaskCreate(ultrasonic_task, "UltrasonicTask", 2048, NULL, 5, &ultrasonicTaskHandle);
 
     xTaskCreate(vWifiTask, "Wifi Task", 256, NULL, 1, NULL);
-    xTaskCreate(vServerTask, "TCP Server Task", 256, NULL, 1, NULL);
+    xTaskCreate(vServerTask, "TCP Server Task", 256, NULL, 1, &serverTaskHandle);
     // xTaskCreate(task_print, "PrintTask", 2048, NULL, 1, &printTaskHandle);
 
     vTaskStartScheduler();
@@ -458,8 +471,8 @@ void vLaunch()
 int main()
 {
     stdio_init_all();
-    set_ssid_password("Galaxy S10edc70", "xmhq2715");
-    set_callback(message_handler);
+    set_ssid_password("SimPhone", "a1234567");
+    // set_callback(message_handler);
 
     gpio_init(LED_PIN1);
     gpio_init(LED_PIN2);

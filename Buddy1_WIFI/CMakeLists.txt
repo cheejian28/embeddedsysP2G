@@ -4,8 +4,7 @@ if (PICO_CYW43_SUPPORTED) # set by PICO_BOARD=pico_w
     if (NOT TARGET pico_cyw43_arch)
         message("Skipping Pico W examples as support is not available")
     else()
-        add_subdirectory(communication)
-        add_subdirectory(IR_sensor)
+        # add_subdirectory(communication)
 
         # ================= CAR ==================
         add_executable(test_car test_car.c)
