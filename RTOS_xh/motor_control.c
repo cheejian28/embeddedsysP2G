@@ -11,6 +11,7 @@
 
 #include "wifi_communication.h"
 #include "udp_server_communication.h"
+#include "udp_client_communication.h"
 #include "ultrasonic.h"
 #include "wheel_encoder.h"
 
@@ -43,9 +44,11 @@
 #define MOTOR_B_IN2 3
 #define MOTOR_B_PWM 5 // right motor
 
-#define DEBOUNCE_TIME_MS 20
+#define DEBOUNCE_BUTTON_TIME_MS 20
 #define PWM_FREQ 100.0f
 #define MAX_INTEGRAL 100.0f
+#define MIN_DUTY_CYCLE 0.6f
+#define MAX_DUTY_CYCLE 0.95f
 
 // PID controller parameters
 float Kp_left = 0.1f;   
@@ -59,7 +62,7 @@ float Kd_right = 0.0001f;
 float duty_cycle = 0.5f; // duty cycle %
 bool is_speed_control_active = true;
 
-float setpoint = 30.0;          // Desired speed (cm/s)
+float setpoint = 20.0;          // Desired speed (cm/s)
 float integral_motor_A = 0.0;   // Integral term for left motor
 float integral_motor_B = 0.0;   // Integral term for right motor
 float prev_error_motor_A = 0.0; // Previous error for left motor
@@ -79,6 +82,7 @@ TaskHandle_t moveTaskHandle;
 TaskHandle_t speedTaskHandle;
 TaskHandle_t ultrasonicTaskHandle;
 TaskHandle_t serverTaskHandle;
+TaskHandle_t clientTaskHandle;
 // TaskHandle_t printTaskHandle;
 
 // Function prototypes
@@ -145,6 +149,20 @@ void vServerTask(void *pvParameters){
     }
 }
 
+void vClientTask(void *pvParameters){
+    bool isConnected = false;
+    while(1){
+        // printf("Checking TCP Connection to Server\n");
+        isConnected = init_udp_client("172.20.10.9", 42069);
+        if(isConnected){
+            printf("[UDP Server Task] Failed Client Task\n");
+            vTaskSuspend(clientTaskHandle);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+}
+
 void message_handler(const char *message){
     // printf("\033[2J\033[H");
     // printf("Main Program Received: %s\n", message);
@@ -195,12 +213,11 @@ void turn_right()
     gpio_put(MOTOR_B_IN2, 0);
 }
 
-// Debounce function
 // bool debounce(bool new_state)
 // {
 //     uint32_t current_time_ms = to_ms_since_boot(get_absolute_time());
 
-//     if (current_time_ms - last_debounce_time_ms >= DEBOUNCE_TIME_MS)
+//     if (current_time_ms - last_debounce_time_ms >= DEBOUNCE_BUTTON_TIME_MS)
 //     {
 //         last_debounce_time_ms = current_time_ms;
 //         button_state = new_state;
@@ -254,7 +271,7 @@ void setup_pwm(uint gpio, float freq, float duty_cycle)
     uint slice_num = pwm_gpio_to_slice_num(gpio);
 
     float clock_freq = 125000000.0f;
-    uint32_t divider = clock_freq / (freq * 65536);
+    uint32_t divider = clock_freq / (freq * 65535);
     pwm_set_clkdiv(slice_num, divider);
 
     pwm_set_wrap(slice_num, 65535);
@@ -283,11 +300,11 @@ void task_motor_speed(__unused void *params)
         {
             // Compute distance-based speed reduction factor
             float speed_factor = 1.0f;
-            if (distance < 50.0f) // Adjust threshold as needed
+            if (distance < 70.0f) // Adjust threshold as needed
             {
                 // Reduce speed as distance decreases
-                speed_factor = distance / 50.0f; // Scale between 0 (0 cm) and 1 (50 cm)
-                speed_factor = fmaxf(speed_factor, 0.2f); // Minimum speed factor to avoid stopping
+                speed_factor = distance / 70.0f; // Scale between 0 (0 cm) and 1 (50 cm)
+                speed_factor = fmaxf(speed_factor, MIN_DUTY_CYCLE); // Minimum speed factor to avoid stopping
             }
 
             // PID controllers
@@ -299,8 +316,8 @@ void task_motor_speed(__unused void *params)
             float new_duty_cycle_b = (duty_cycle + control_signal_b) * speed_factor;
 
             // Constrain duty cycles to valid range
-            new_duty_cycle_a = fminf(fmaxf(new_duty_cycle_a, 0.25f), 0.9f);
-            new_duty_cycle_b = fminf(fmaxf(new_duty_cycle_b, 0.25f), 0.9f);
+            new_duty_cycle_a = fminf(fmaxf(new_duty_cycle_a, MIN_DUTY_CYCLE), MAX_DUTY_CYCLE);
+            new_duty_cycle_b = fminf(fmaxf(new_duty_cycle_b, MIN_DUTY_CYCLE), MAX_DUTY_CYCLE);
 
             // Apply the duty cycles
             setup_pwm(MOTOR_A_PWM, PWM_FREQ, new_duty_cycle_a);
@@ -352,9 +369,9 @@ void task_move(__unused void *params)
                 else if(strcmp(direction, "r") == 0){
                     turn_right();
                 }
-                // else if(strcmp(direction, "s") == 0){
-                //     stop_motors();
-                // }
+                else if(strcmp(direction, "s") == 0){
+                    stop_motors();
+                }
                 break;
 
             // case STATE_OBSTACLE_DETECTED:
@@ -395,14 +412,13 @@ void task_move(__unused void *params)
                 gpio_put(LED_PIN1, 0);
                 gpio_put(LED_PIN2, 1);
                 stop_motors();
-                // vTaskDelete(NULL); // End task
                 break;
 
             default:
                 break;
         }
 
-        vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(300));
+        vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(25));
     }
 }
 
@@ -414,7 +430,7 @@ void ultrasonic_task(void *pvParameters)
         triggerUltraSonicPins();
         vTaskDelay(pdMS_TO_TICKS(300)); // Wait for echo
         
-        if (distance < 30.0f)
+        if (distance < 25.0f)
         {
             robot_state = STATE_STOP;
             printf("Obstacle detected! Stopping the robot\n");
@@ -462,7 +478,8 @@ void vLaunch()
     xTaskCreate(ultrasonic_task, "UltrasonicTask", 2048, NULL, 5, &ultrasonicTaskHandle);
 
     xTaskCreate(vWifiTask, "Wifi Task", 256, NULL, 1, NULL);
-    xTaskCreate(vServerTask, "TCP Server Task", 256, NULL, 1, &serverTaskHandle);
+    xTaskCreate(vServerTask, "UDP Server Task", 256, NULL, 1, &serverTaskHandle);
+    // xTaskCreate(vClientTask, "UDP Client Task", 256, NULL, 1, &clientTaskHandle);
     // xTaskCreate(task_print, "PrintTask", 2048, NULL, 1, &printTaskHandle);
 
     vTaskStartScheduler();
