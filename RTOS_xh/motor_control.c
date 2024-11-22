@@ -216,7 +216,7 @@ void turn_right()
 // bool debounce(bool new_state)
 // {
 //     uint32_t current_time_ms = to_ms_since_boot(get_absolute_time());
-
+// 
 //     if (current_time_ms - last_debounce_time_ms >= DEBOUNCE_BUTTON_TIME_MS)
 //     {
 //         last_debounce_time_ms = current_time_ms;
@@ -225,7 +225,7 @@ void turn_right()
 //     return button_state;
 // }
 
-// PID computation function
+// PID computation function for maintaining balanced motor speed
 float compute_pid(float setpoint, float current_motor_speed, float *integral, float *prev_error, float Kp, float Ki, float Kd)
 {
     float error, derivative;
@@ -263,7 +263,7 @@ float compute_pid(float setpoint, float current_motor_speed, float *integral, fl
     return control_signal;
 }
 
-// PWM setup function
+// PWM setup function for motors
 void setup_pwm(uint gpio, float freq, float duty_cycle)
 {
 
@@ -289,7 +289,7 @@ void reset_encoders()
     cumulative_distance = 0.0;
 }
 
-// Task to move the car
+// Tasks
 void task_motor_speed(__unused void *params)
 {
     TickType_t last_wake_time = xTaskGetTickCount();
@@ -325,8 +325,8 @@ void task_motor_speed(__unused void *params)
         }
         else
         {
-            setup_pwm(MOTOR_A_PWM, PWM_FREQ, 0.0f);
-            setup_pwm(MOTOR_B_PWM, PWM_FREQ, 0.0f);
+            setup_pwm(MOTOR_A_PWM, PWM_FREQ, MIN_DUTY_CYCLE);
+            setup_pwm(MOTOR_B_PWM, PWM_FREQ, MIN_DUTY_CYCLE);
         }
 
         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(25));
@@ -434,19 +434,13 @@ void ultrasonic_task(void *pvParameters)
         {
             robot_state = STATE_STOP;
             printf("Obstacle detected! Stopping the robot\n");
-            vTaskDelay(pdMS_TO_TICKS(2000)); // Wait for 1 second
+            vTaskDelay(pdMS_TO_TICKS(2000)); // Wait time for controller to respond
             robot_state = STATE_REMOTE;
-            vTaskDelay(pdMS_TO_TICKS(3000)); // Wait for 1 second
+            vTaskDelay(pdMS_TO_TICKS(3000)); 
         }
-        // else
-        // {
-        //     robot_state = STATE_REMOTE;
-        //     // printf("Resumed remote state");
-        // }
     }
 }
 
-// Task for handling prints
 void task_print(__unused void *params)
 {
     char buffer[64];
@@ -475,7 +469,6 @@ void task_print(__unused void *params)
     }
 }
 
-// Launch function to start tasks
 void vLaunch()
 {
     xTaskCreate(task_move, "MoveTask", 2048, NULL, 4, &moveTaskHandle);
@@ -494,7 +487,6 @@ int main()
 {
     stdio_init_all();
     set_ssid_password("SimPhone", "a1234567");
-    // set_callback(message_handler);
 
     gpio_init(LED_PIN1);
     gpio_init(LED_PIN2);
