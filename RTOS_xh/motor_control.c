@@ -62,7 +62,7 @@ float Kd_right = 0.0001f;
 float duty_cycle = 0.5f; // duty cycle %
 bool is_speed_control_active = true;
 
-float setpoint = 20.0;          // Desired speed (cm/s)
+float setpoint = 15.0;          // Desired speed (cm/s)
 float integral_motor_A = 0.0;   // Integral term for left motor
 float integral_motor_B = 0.0;   // Integral term for right motor
 float prev_error_motor_A = 0.0; // Previous error for left motor
@@ -83,7 +83,7 @@ TaskHandle_t speedTaskHandle;
 TaskHandle_t ultrasonicTaskHandle;
 TaskHandle_t serverTaskHandle;
 TaskHandle_t clientTaskHandle;
-// TaskHandle_t printTaskHandle;
+TaskHandle_t printTaskHandle;
 
 // Function prototypes
 void vWifiTask(void *pvParameters);
@@ -329,7 +329,7 @@ void task_motor_speed(__unused void *params)
             setup_pwm(MOTOR_B_PWM, PWM_FREQ, 0.0f);
         }
 
-        vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(20));
+        vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(25));
     }
 }
 
@@ -355,7 +355,7 @@ void task_move(__unused void *params)
                 // printf("Action Received: %s\n", action_received);
                 sscanf(action_received, "%s %f%%", direction, &speed);
 
-                printf("Moving Direction: %s, Speed: %f\n", direction, speed);
+                // printf("Direction: %s, Speed: %f\n", direction, speed);
                 
                 if(strcmp(direction, "f") == 0){
                     move_forward();
@@ -449,6 +449,8 @@ void ultrasonic_task(void *pvParameters)
 // Task for handling prints
 void task_print(__unused void *params)
 {
+    char buffer[64];
+
     while (1)
     {    
         // Print ultrasonic distance
@@ -464,7 +466,10 @@ void task_print(__unused void *params)
         // Print total distance traveled
         // printf("Total Distance Left: %.2f cm\n", cumulative_distance_left);
         // printf("Total Distance Right: %.2f cm\n", cumulative_distance_right);
-        printf("UltraSonic Distance: %.2f cm\n", distance);
+        // printf("UltraSonic Distance: %.2f cm\n", distance);
+
+        sprintf(buffer, "us %.2fcm\0", distance);
+        send_udp_data(buffer);
 
         vTaskDelay(pdMS_TO_TICKS(1000)); // Adjust the delay as needed
     }
@@ -479,8 +484,8 @@ void vLaunch()
 
     xTaskCreate(vWifiTask, "Wifi Task", 256, NULL, 1, NULL);
     xTaskCreate(vServerTask, "UDP Server Task", 256, NULL, 1, &serverTaskHandle);
-    // xTaskCreate(vClientTask, "UDP Client Task", 256, NULL, 1, &clientTaskHandle);
-    // xTaskCreate(task_print, "PrintTask", 2048, NULL, 1, &printTaskHandle);
+    xTaskCreate(vClientTask, "UDP Client Task", 256, NULL, 1, &clientTaskHandle);
+    xTaskCreate(task_print, "PrintTask", 2048, NULL, 1, &printTaskHandle);
 
     vTaskStartScheduler();
 }

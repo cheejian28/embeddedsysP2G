@@ -25,7 +25,7 @@ void printNetworkInfo(const int port){
 
 void udp_recv_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
     if (p != NULL) {
-        printf("Received: %s\n", (char *)p->payload);
+        // printf("Received: %s\n", (char *)p->payload);
 
         // Forward data to main function
         if(callback != NULL) callback(p->payload);
