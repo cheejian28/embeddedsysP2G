@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wifi_communication.h>
-#include <client_communication.h>
+#include <udp_client_communication.h>
 
 
 #define ACCEL_ADDRESS 0x19
@@ -121,8 +121,9 @@ void generate_command(int16_t x, int16_t y, float *speed_x, float *speed_y, int1
     // Only print command if it differs from the last printed command
     if (strcmp(command, last_command) != 0) {
         printf("Command: %s\n", command);
-        tcp_send_data(command);
+        // tcp_send_data(command);
         strncpy(last_command, command, sizeof(command)); 
+        send_udp_data(command);
     }
 }
 
@@ -139,13 +140,14 @@ int main() {
     stdio_init_all();
     i2c_init_gy511(); 
 
-    // set_ssid_password("SimPhone", "a1234567");
-    set_ssid_password("Galaxy S10edc70", "xmhq2715");
+    set_ssid_password("SimPhone", "a1234567");
+    // set_ssid_password("Galaxy S10edc70", "xmhq2715");
     checkWifiConnection();
 
     // set_ip_address("172.20.10.2");
-    set_ip_address("192.168.252.184");
-    checkClientConnection();
+    // set_ip_address("192.168.252.184");
+    // checkClientConnection();
+    init_udp_client("172.20.10.7", 42069);
 
     // init_wifi_with_ssid_password("SimPhone","a1234567");
     // init_tcp_client_with_ip("172.20.10.2");
@@ -167,13 +169,13 @@ int main() {
         calculate_speed(x, &prev_x, &speed_x, time_interval);
         calculate_speed(y, &prev_y, &speed_y, time_interval);
 
-        //printf("Current X: %d, Y: %d, Z: %d, Speed X: %.2f, Speed Y: %.2f\n", x, y, z, speed_x, speed_y);
+        // printf("Current X: %d, Y: %d, Z: %d, Speed X: %.2f, Speed Y: %.2f\n", x, y, z, speed_x, speed_y);
         generate_command(x, y, &speed_x, &speed_y, noise_x, noise_y, last_command);
 
-        checkWifiConnection();
-        checkClientConnection();
+        // checkWifiConnection();
+        // checkClientConnection();
 
-        sleep_ms(500);
+        sleep_ms(25);
     }
 
     return 0;
