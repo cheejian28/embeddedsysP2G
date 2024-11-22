@@ -95,7 +95,7 @@ void generate_command(int16_t x, int16_t y, float *speed_x, float *speed_y, int1
     char command[50];
 
     if (speed_x_abs < STATIONARY_THRESHOLD && speed_y_abs < STATIONARY_THRESHOLD) {
-        snprintf(command, sizeof(command), "stationary");
+        snprintf(command, sizeof(command), "s");
         *speed_x = 0.0;
         *speed_y = 0.0;
     } else {
