@@ -1,0 +1,5 @@
+add_subdirectory(wifi_communication)
+add_subdirectory(client_communication)
+add_subdirectory(server_communication)
+add_subdirectory(udp_client_communication)
+add_subdirectory(udp_server_communication)
