@@ -14,6 +14,10 @@
 #include "ultrasonic.h"
 #include "wheel_encoder.h"
 
+#include "wifi_communication.h"
+#include "client_communication.h"
+#include "server_communication.h"
+
 // Definitions and configurations
 #define TASK_PRIORITY (tskIDLE_PRIORITY + 1UL)
 #ifndef RUN_FREERTOS_ON_CORE

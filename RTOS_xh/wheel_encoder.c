@@ -40,14 +40,19 @@ void gpio_callback(uint gpio, uint32_t events)
             if (!is_nil_time(last_fall_time_l))
             {
                 float time_interval = (float)absolute_time_diff_us(last_fall_time_l, last_rise_time_l) / 1000000.0;
-                if (time_interval > 0.01f)
+                if (time_interval > 0.001f)
                 {
                     speedLeftEncoder = (WHEEL_CIRCUMFERENCE / PPR) / time_interval;
                     // t_distance_travelled += DISTANCE_PER_PULSE;
                     // printf("Speed: %.2f cm/s\n", speed);
                     // printf("Distance Travelled: %.2f cm\n", t_distance_travelled);
                 }
+                else
+                {
+                    speedLeftEncoder = 0.0f; // Handle zero or invalid time interval
+                }
             }
+
             last_fall_time_l = last_rise_time_l;
 
             float time_since_last_update = (float)absolute_time_diff_us(last_distance_update_left, current_time) / 1000000.0;
@@ -68,7 +73,7 @@ void gpio_callback(uint gpio, uint32_t events)
             if (!is_nil_time(last_fall_time_r))
             {
                 float time_interval = (float)absolute_time_diff_us(last_fall_time_r, last_rise_time_r) / 1000000.0;
-                if (time_interval > 0.0f)
+                if (time_interval > 0.001f)
                 { // Safeguard against zero time interval
                     speedRightEncoder = (WHEEL_CIRCUMFERENCE / PPR) / time_interval;
                 }

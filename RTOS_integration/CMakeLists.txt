@@ -15,6 +15,9 @@ target_link_libraries(RTOS_integration
         hardware_pwm
         hardware_gpio
         hardware_adc
+        wifi_communication 
+        client_communication 
+        server_communication
         )
 
 # Add the include directory for FreeRTOS.h

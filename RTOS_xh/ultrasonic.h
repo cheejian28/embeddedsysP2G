@@ -23,7 +23,7 @@ void setUpUltrasonicPins(); // Removed parameters for consistency
 // void sendInitiationPulse(); // Removed parameters for consistency
 // void getUltrasonicDetection(uint64_t pulseLength);
 void handle_echo(uint32_t events);
-
+void triggerUltraSonicPins();
 // FreeRTOS task for ultrasonic sensor
 void ultrasonic_task(void *pvParameters);
 

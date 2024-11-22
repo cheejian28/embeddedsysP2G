@@ -11,7 +11,7 @@
 const int debounce_time = 100;
 volatile absolute_time_t rise_time;
 volatile absolute_time_t fall_time;
-volatile float distance=100.0f;
+extern volatile float distance=100.0f;
 
 
 void setUpUltrasonicPins()
@@ -49,9 +49,9 @@ void handle_echo(uint32_t events)
     if(!is_nil_time(fall_time) && !is_nil_time(rise_time))
     {
         uint64_t time_diff = absolute_time_diff_us(rise_time, fall_time);
-        printf("Rise time: %lld\n", to_us_since_boot(rise_time));
-        printf("Fall time: %lld\n", to_us_since_boot(fall_time));
-        printf("abs time diff: %llu\n", time_diff);
+        // printf("Rise time: %lld\n", to_us_since_boot(rise_time));
+        // printf("Fall time: %lld\n", to_us_since_boot(fall_time));
+        // printf("abs time diff: %llu\n", time_diff);
            
         if(time_diff < debounce_time)
         {
@@ -70,18 +70,8 @@ void handle_echo(uint32_t events)
 
         uint64_t pulse_width = time_diff;
         distance = (pulse_width * 0.0343f) / 2.0f;
-        printf("Distance: %.2f cm\n", distance); // Debug print
+        // printf("Distance: %.2f cm\n", distance); // Debug print
         rise_time = nil_time;
         fall_time = nil_time;
-    }
-}
-
-void ultrasonic_task(void *pvParameters)
-{
-    while (1)
-    {
-        // Trigger ultrasonic pulse and calculate distance
-        triggerUltraSonicPins();
-        vTaskDelay(pdMS_TO_TICKS(300)); // Wait for echo
     }
 }

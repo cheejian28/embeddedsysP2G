@@ -7,7 +7,7 @@
 #include "pico/stdlib.h"
 #include <stdio.h>
 
-#define ENCODER_LEFT 7
+#define ENCODER_LEFT 6
 #define ENCODER_RIGHT 8
 #define PPR 20
 #define WHEEL_DIAMETER 6.5f
