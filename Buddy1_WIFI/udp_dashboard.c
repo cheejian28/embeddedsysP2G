@@ -15,15 +15,14 @@ void updateDashboard();
 
 typedef struct {
     uint32_t lastUpdateTime;
-    uint8_t speed;
-    char direction[10];
-    char ultrasonic_distance[1024];
+    char direction[32];
+    char speed[32];
+    char distance_travelled[32];
+    char ultrasonic_distance[32];
+    char ir_state[32];
 } DASHBOARD_DATA;
 DASHBOARD_DATA dashboard;
 TaskHandle_t serverTaskHandle;
-
-static char type[10];
-static char data[1024];
 
 int main(){
     stdio_init_all();
@@ -33,10 +32,12 @@ int main(){
     set_ssid_password("SimPhone", "a1234567");
     xTaskCreate(vWifiTask, "Wifi Task", 256, NULL, 1, NULL);
 
-    xTaskCreate(vServerTask, "TCP Server Task", 256, NULL, 1, &serverTaskHandle);
+    xTaskCreate(vServerTask, "UDP Server Task", 256, NULL, 1, &serverTaskHandle);
 
     struct repeating_timer timer;
     add_repeating_timer_ms(-1000, updateDashboardTimerCallback, NULL, &timer);
+
+    updateDashboard();
 
     vTaskStartScheduler();
 
@@ -58,6 +59,7 @@ void vServerTask(void *pvParameters){
         isConnected = init_udp_server(42069, message_handler);
         if (isConnected) {
             printf("SUSPENDING UDP SERVER TASK!!!!!!!\n\n");
+            updateDashboard();
             vTaskSuspend(serverTaskHandle);
         }
 
@@ -66,22 +68,60 @@ void vServerTask(void *pvParameters){
 }
 
 void message_handler(const char *message){
-    // printf("Main Program Received: %s\n", message);
+    printf("\033[8;1H");
+    printf("Main Program Received: %s", message);
+    printf("\033[K");
+
+    char type[10];
+    char data[32];
 
     dashboard.lastUpdateTime = to_ms_since_boot(get_absolute_time());
 
     sscanf(message, "%s %s", type, data);
     // printf("Type: %s, Data: %s\n", type, data);
 
-    if(strcmp(type, "us") == 0){
-        memcpy(dashboard.ultrasonic_distance, data, sizeof(data));
+    if(strcmp(type, "dir") == 0){
+        printf("\033[3;1H");  // Move cursor to row 3, column 1
+        printf("Car Direction: %s %s", data);
+        printf("\033[K"); 
+    }else if(strcmp(type, "sp") == 0){
+        printf("\033[4;1H");  // Move cursor to row 3, column 1
+        printf("Setpoint: %s", data);
+        printf("\033[K");
+    }else if(strcmp(type, "dt") == 0){
+        // memcpy(dashboard.distance_travelled, data, sizeof(data));
+        printf("\033[5;1H");  // Move cursor to row 3, column 1
+        printf("Distance Travelled: %s", data);
+        printf("\033[K");
+    }else if(strcmp(type, "us") == 0){
+        // memcpy(dashboard.ultrasonic_distance, data, sizeof(data));
+        printf("\033[6;1H");  // Move cursor to row 3, column 1
+        printf("Ultrasonic Distance: %s", data);
+        printf("\033[K");
+    }else if(strcmp(type, "ir") == 0){
+        // memcpy(dashboard.ir_state, data, sizeof(data));
+        printf("\033[7;1H");  // Move cursor to row 3, column 1
+        printf("Distance Travelled: %s", data);
+        printf("\033[K");
     }
 
     // updateDashboard();
 }
 
 bool updateDashboardTimerCallback(repeating_timer_t *rt){
-    updateDashboard();
+    // updateDashboard();
+
+    uint32_t elapsed_time_ms = to_ms_since_boot(get_absolute_time()) - dashboard.lastUpdateTime;
+    uint32_t seconds = elapsed_time_ms / 1000;
+
+    printf("\033[1;1H");
+    printf("DASHBOARD (Updated %d seconds ago)", seconds);
+    printf("\033[K");
+
+    printf("\033[2;1H");
+    printf("==================================");
+    printf("\033[K");
+
     return true;
 }
 
@@ -93,7 +133,9 @@ void updateDashboard(){
     printf("\033[2J\033[H");
     printf("DASHBOARD (Updated %d seconds ago)\n", seconds);
     printf("==================================\n");
-    printf("Speed: %d\n", dashboard.speed);
-    printf("Direction: %c\n", dashboard.direction);
+    printf("Car Direction: %s\n", dashboard.direction);
+    printf("Car Speed: %s\n", dashboard.speed);
+    printf("Distance Travelled: %s\n", dashboard.distance_travelled);
     printf("Ultrasonic Distance: %s\n", dashboard.ultrasonic_distance);
+    printf("IR Sensor State: %s\n", dashboard.ir_state);
 }

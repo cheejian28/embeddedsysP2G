@@ -22,7 +22,7 @@
 #define SDA_PIN 4
 
 #define CALIBRATION_SAMPLES 200
-#define NOISE_THRESHOLD_PERCENTAGE 0.1
+#define NOISE_THRESHOLD_PERCENTAGE 0.01
 #define MAX_SPEED 100.0
 #define SPEED_SCALING_FACTOR 500.0
 #define HIGH_PASS_THRESHOLD 10
@@ -102,18 +102,18 @@ void generate_command(int16_t x, int16_t y, float *speed_x, float *speed_y, int1
         if (speed_x_abs > speed_y_abs) {
             if (*speed_x > 0) {
                 // snprintf(command, sizeof(command), "forward at %.1f%% speed", (*speed_x / MAX_SPEED) * 100);
-                snprintf(command, sizeof(command), "f %.1f%%", (*speed_x / MAX_SPEED) * 100);
+                snprintf(command, sizeof(command), "f %.1f%%", (*speed_x / MAX_SPEED) * 1000);
             } else {
                 // snprintf(command, sizeof(command), "backward at %.1f%% speed", (-*speed_x / MAX_SPEED) * 100);
-                snprintf(command, sizeof(command), "b %.1f%%", (-*speed_x / MAX_SPEED) * 100);
+                snprintf(command, sizeof(command), "b %.1f%%", (-*speed_x / MAX_SPEED) * 1000);
             }
         } else {
             if (*speed_y > 0) {
                 // snprintf(command, sizeof(command), "turn right at %.1f%% speed", (*speed_y / MAX_SPEED) * 100);
-                snprintf(command, sizeof(command), "l %.1f%%", (*speed_y / MAX_SPEED) * 100);
+                snprintf(command, sizeof(command), "l %.1f%%", (*speed_y / MAX_SPEED) * 1000);
             } else {
                 // snprintf(command, sizeof(command), "turn left at %.1f%% speed", (-*speed_y / MAX_SPEED) * 100);
-                snprintf(command, sizeof(command), "r %.1f%%", (-*speed_y / MAX_SPEED) * 100);
+                snprintf(command, sizeof(command), "r %.1f%%", (-*speed_y / MAX_SPEED) * 1000);
             }
         }
     }
