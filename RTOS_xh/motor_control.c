@@ -51,12 +51,15 @@
 #define MIN_DUTY_CYCLE 0.6f
 #define MAX_DUTY_CYCLE 0.95f
 
+#define ADC_BLACK 3100
+// #define ADC_WHITE 1000
+
 // PID controller parameters
 float Kp_left = 0.1f;   
 float Ki_left = 0.01f;  
 float Kd_left = 0.0001f;
 
-float Kp_right = 0.065f;
+float Kp_right = 0.06f; //0.065
 float Ki_right = 0.01f; 
 float Kd_right = 0.0001f;
 
@@ -157,7 +160,7 @@ void vClientTask(void *pvParameters){
         // printf("Checking TCP Connection to Server\n");
         isConnected = init_udp_client("172.20.10.9", 42069);
         if(isConnected){
-            printf("[UDP Server Task] Failed Client Task\n");
+            printf("[UDP Client Task] Failed Client Task\n");
             vTaskSuspend(clientTaskHandle);
         }
 
@@ -245,9 +248,9 @@ float compute_pid(float setpoint, float current_motor_speed, float *integral, fl
         derivative = error - *prev_error;
     }
 
-    if (setpoint > 25.0f)
+    if (setpoint > 20.0f)
     {
-        setpoint = 25.0f;
+        setpoint = 20.0f;
     }
 
     if (*integral > MAX_INTEGRAL)
@@ -332,8 +335,11 @@ void task_motor_speed(__unused void *params)
         }
         else
         {
-            setup_pwm(MOTOR_A_PWM, PWM_FREQ, MIN_DUTY_CYCLE);
-            setup_pwm(MOTOR_B_PWM, PWM_FREQ, MIN_DUTY_CYCLE);
+            // setup_pwm(MOTOR_A_PWM, PWM_FREQ, MIN_DUTY_CYCLE);
+            // setup_pwm(MOTOR_B_PWM, PWM_FREQ, MIN_DUTY_CYCLE);
+            setup_pwm(MOTOR_A_PWM, 200.0f, 0.65f);
+            setup_pwm(MOTOR_B_PWM, 200.0f, 0.65f);
+            
         }
 
         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(25));
@@ -346,8 +352,8 @@ void task_move(__unused void *params)
     bool button_pressed = !gpio_get(BUTTON_PIN); 
     int left_turn_count = 0;
     int right_turn_count = 0;
-    const int MAX_LEFT_TURN = 3;
-    const int MAX_RIGHT_TURN = 6;
+    const int MAX_LEFT_TURN = 60; // 6&12 for 50ms delay = 300ms & 600ms
+    const int MAX_RIGHT_TURN = 120;
 
     while (true)
     {
@@ -355,13 +361,24 @@ void task_move(__unused void *params)
         // {
         //     move_forward();
         // }
-        cumulative_distance = (cumulative_distance_left + cumulative_distance_right) / 2;
+        adc_init();
+        adc_select_input(1);
+        cumulative_distance = (cumulative_distance_left + cumulative_distance_right) / 2;            
+        
+        uint16_t adc_current_value = adc_read();
+        // printf("ADC Current Value: %d\n", adc_current_value);
+        if (adc_current_value > ADC_BLACK)
+        {
+            robot_state = STATE_AUTONOMOUS;
+        }
 
         switch (robot_state)
         {
             case STATE_REMOTE:
                 gpio_put(LED_PIN1, 1);
                 gpio_put(LED_PIN2, 0);
+                gpio_put(LED_PIN3, 0);
+
                 is_speed_control_active = true;
                 // printf("Action Received: %s\n", action_received);
                 sscanf(action_received, "%s %f%%", direction, &speed);
@@ -419,15 +436,19 @@ void task_move(__unused void *params)
             case STATE_AUTONOMOUS:
                 // based on IR
                 // if ultrasonic distance threshold set robot_state to measure distance to object when stopped
+                gpio_put(LED_PIN1, 0);
+                gpio_put(LED_PIN2, 0);
+                gpio_put(LED_PIN3, 1);
                 
                 getIrLineValue();      // get the function to call to update the new irline value into the line_input variable
-                if (line_input > 1000) // if above 1000, the higher the blacker
+                if (line_input > ADC_BLACK) // if above 1000, the higher the blacker
                 {
                     // set the car to move forward and left/right turn count to 0, there can be a better way for this i think
                     is_speed_control_active = true;
                     move_forward();
                     left_turn_count = 0;
                     right_turn_count = 0;
+                    
                 }
                 else // if lower than 1000 means white surface
                 {
@@ -441,10 +462,10 @@ void task_move(__unused void *params)
                     while (left_turn_count < MAX_LEFT_TURN)
                     {
                         turn_left();
-                        vTaskDelay(pdMS_TO_TICKS(100));
+                        vTaskDelay(pdMS_TO_TICKS(5));
                         getIrLineValue();
 
-                        if (line_input > 1000)
+                        if (line_input > ADC_BLACK)
                         {
                             // break this loop so it can go back to the move forward condition
                             break;
@@ -458,10 +479,10 @@ void task_move(__unused void *params)
                         while (right_turn_count < MAX_RIGHT_TURN)
                         {
                             turn_right();
-                            vTaskDelay(pdMS_TO_TICKS(100)); // Adjust delay as needed
-
-                            getValue();
-                            if (line_input > 1000)
+                            vTaskDelay(pdMS_TO_TICKS(5)); // Adjust delay as needed
+                            getIrLineValue();
+                            
+                            if (line_input > ADC_BLACK)
                             {
                                 break;
                             }
@@ -470,19 +491,20 @@ void task_move(__unused void *params)
 
                         if (right_turn_count >= MAX_RIGHT_TURN) // if turn right still cannot find, we can do something else, like stop car and set it to stop state
                         {
-                            // Could not find the line, stop the robot
-                            stop_motors();
-                            is_speed_control_active = false;
-                            robot_state = STATE_STOP; // Or handle as needed
+                            // Could not find the line, stop robot
+                            turn_left();
+                            vTaskDelay(pdMS_TO_TICKS(100));
+                            robot_state = STATE_STOP; 
                         }
                     }
                 }
                 break;
                 
             case STATE_STOP:
+                stop_motors();
                 gpio_put(LED_PIN1, 0);
                 gpio_put(LED_PIN2, 1);
-                stop_motors();
+                gpio_put(LED_PIN3, 0);
                 break;
 
             default:
@@ -532,10 +554,25 @@ void task_print(__unused void *params)
         // printf("Total Distance Right: %.2f cm\n", cumulative_distance_right);
         // printf("UltraSonic Distance: %.2f cm\n", distance);
 
-        sprintf(buffer, "us %.2fcm\0", distance);
+        memset(buffer, 0, sizeof(buffer));
+        sprintf(buffer, "dir %s", direction);
         send_udp_data(buffer);
+        memset(buffer, 0, sizeof(buffer));
 
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Adjust the delay as needed
+        sprintf(buffer, "sp %.2f", setpoint);
+        send_udp_data(buffer);
+        memset(buffer, 0, sizeof(buffer));
+
+        sprintf(buffer, "dt %.2fcm", cumulative_distance);
+        send_udp_data(buffer);
+        memset(buffer, 0, sizeof(buffer));
+
+        sprintf(buffer, "us %.2fcm", distance);
+        send_udp_data(buffer);
+        memset(buffer, 0, sizeof(buffer));
+
+
+        vTaskDelay(pdMS_TO_TICKS(3000)); // Adjust the delay as needed
     }
 }
 

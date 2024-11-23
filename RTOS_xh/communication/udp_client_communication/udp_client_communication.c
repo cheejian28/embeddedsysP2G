@@ -31,6 +31,7 @@ bool send_udp_data(const char *data){
     struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, strlen(data), PBUF_RAM);
     if (p) {
         memcpy(p->payload, data, strlen(data));
+        printf("P VALUE: %s\n", p->payload);
         udp_sendto(pcb, p, &dest_ip, dest_port);
         pbuf_free(p);
     }

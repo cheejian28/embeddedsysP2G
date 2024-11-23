@@ -5,7 +5,7 @@
 #include "hardware/adc.h"
 #include <stdio.h>
 
-#define IR_PIN 28
+#define IR_PIN 27
 
 extern volatile uint32_t line_input;
 

@@ -2,7 +2,7 @@
 #include "hardware/adc.h"
 #include <stdio.h>
 
-#define IR_PIN 28 // GPIO pin where the IR module is connected
+#define IR_PIN 27 // GPIO pin where the IR module is connected
 
 extern volatile uint32_t line_input = 0;
 
@@ -10,10 +10,10 @@ void setUpLineFollowing()
 {
     adc_init();
     adc_gpio_init(IR_PIN);
-    adc_select_input(2);
+    adc_select_input(1);
 }
 
-void getValue()
+void getIrLineValue()
 {
     line_input = adc_read();
 }
