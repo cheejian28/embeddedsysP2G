@@ -14,6 +14,7 @@
 #include "udp_client_communication.h"
 #include "ultrasonic.h"
 #include "wheel_encoder.h"
+#include "irline_following.h"
 
 // Definitions and configurations
 #define TASK_PRIORITY (tskIDLE_PRIORITY + 1UL)
@@ -80,6 +81,7 @@ float speed = 0;
 
 TaskHandle_t moveTaskHandle;
 TaskHandle_t speedTaskHandle;
+TaskHandle_t irlineFollowingTaskHandle;
 TaskHandle_t ultrasonicTaskHandle;
 TaskHandle_t serverTaskHandle;
 TaskHandle_t clientTaskHandle;
@@ -243,6 +245,11 @@ float compute_pid(float setpoint, float current_motor_speed, float *integral, fl
         derivative = error - *prev_error;
     }
 
+    if (setpoint > 25.0f)
+    {
+        setpoint = 25.0f;
+    }
+
     if (*integral > MAX_INTEGRAL)
     {
         *integral = MAX_INTEGRAL;
@@ -337,6 +344,10 @@ void task_move(__unused void *params)
 {
     TickType_t last_wake_time = xTaskGetTickCount();
     bool button_pressed = !gpio_get(BUTTON_PIN); 
+    int left_turn_count = 0;
+    int right_turn_count = 0;
+    const int MAX_LEFT_TURN = 3;
+    const int MAX_RIGHT_TURN = 6;
 
     while (true)
     {
@@ -354,9 +365,11 @@ void task_move(__unused void *params)
                 is_speed_control_active = true;
                 // printf("Action Received: %s\n", action_received);
                 sscanf(action_received, "%s %f%%", direction, &speed);
-
-                // printf("Direction: %s, Speed: %f\n", direction, speed);
                 
+                // printf("Direction: %s, Speed: %f\n", direction, speed);
+                setpoint = speed;
+                // printf("setpoint %f\n", setpoint);
+
                 if(strcmp(direction, "f") == 0){
                     move_forward();
                 }
@@ -406,8 +419,66 @@ void task_move(__unused void *params)
             case STATE_AUTONOMOUS:
                 // based on IR
                 // if ultrasonic distance threshold set robot_state to measure distance to object when stopped
-                break;
+                
+                getIrLineValue();      // get the function to call to update the new irline value into the line_input variable
+                if (line_input > 1000) // if above 1000, the higher the blacker
+                {
+                    // set the car to move forward and left/right turn count to 0, there can be a better way for this i think
+                    is_speed_control_active = true;
+                    move_forward();
+                    left_turn_count = 0;
+                    right_turn_count = 0;
+                }
+                else // if lower than 1000 means white surface
+                {
+                    // stop the motor and start to turn left first with a task delay of 100ms, we can look into the delays more
+                    stop_motors();
+                    is_speed_control_active = false;
 
+                    // does a while loop and increase the left_turn_count every time it is turning in 100ms each time,
+                    // also updates the line_input value so we can check if it ever reaches above 1k, to be black again and
+                    // and also break the while loop
+                    while (left_turn_count < MAX_LEFT_TURN)
+                    {
+                        turn_left();
+                        vTaskDelay(pdMS_TO_TICKS(100));
+                        getIrLineValue();
+
+                        if (line_input > 1000)
+                        {
+                            // break this loop so it can go back to the move forward condition
+                            break;
+                        }
+                        left_turn_count++; // increment the count
+                    }
+                    if (left_turn_count >= MAX_LEFT_TURN) // if it ever turns till 3time and find nothing, it will try to turn right
+                    {
+                        // Try turning right
+                        right_turn_count = 0;
+                        while (right_turn_count < MAX_RIGHT_TURN)
+                        {
+                            turn_right();
+                            vTaskDelay(pdMS_TO_TICKS(100)); // Adjust delay as needed
+
+                            getValue();
+                            if (line_input > 1000)
+                            {
+                                break;
+                            }
+                            right_turn_count++;
+                        }
+
+                        if (right_turn_count >= MAX_RIGHT_TURN) // if turn right still cannot find, we can do something else, like stop car and set it to stop state
+                        {
+                            // Could not find the line, stop the robot
+                            stop_motors();
+                            is_speed_control_active = false;
+                            robot_state = STATE_STOP; // Or handle as needed
+                        }
+                    }
+                }
+                break;
+                
             case STATE_STOP:
                 gpio_put(LED_PIN1, 0);
                 gpio_put(LED_PIN2, 1);
@@ -433,10 +504,9 @@ void ultrasonic_task(void *pvParameters)
         if (distance < 25.0f)
         {
             robot_state = STATE_STOP;
-            printf("Obstacle detected! Stopping the robot\n");
             vTaskDelay(pdMS_TO_TICKS(2000)); // Wait time for controller to respond
             robot_state = STATE_REMOTE;
-            vTaskDelay(pdMS_TO_TICKS(3000)); 
+            vTaskDelay(pdMS_TO_TICKS(1500)); 
         }
     }
 }
@@ -473,7 +543,7 @@ void vLaunch()
 {
     xTaskCreate(task_move, "MoveTask", 2048, NULL, 4, &moveTaskHandle);
     xTaskCreate(task_motor_speed, "SpeedTask", 2048, NULL, 4, &speedTaskHandle);
-    xTaskCreate(ultrasonic_task, "UltrasonicTask", 2048, NULL, 5, &ultrasonicTaskHandle);
+    xTaskCreate(ultrasonic_task, "UltrasonicTask", 2048, NULL, 10, &ultrasonicTaskHandle);
 
     xTaskCreate(vWifiTask, "Wifi Task", 256, NULL, 1, NULL);
     xTaskCreate(vServerTask, "UDP Server Task", 256, NULL, 1, &serverTaskHandle);

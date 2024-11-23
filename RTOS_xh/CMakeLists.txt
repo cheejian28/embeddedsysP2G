@@ -2,6 +2,7 @@ add_executable(RTOS_xh
         motor_control.c
         wheel_encoder.c
         ultrasonic.c
+        irline_following.c
         )
 target_include_directories(RTOS_xh PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
