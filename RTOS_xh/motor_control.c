@@ -158,7 +158,7 @@ void vClientTask(void *pvParameters){
     bool isConnected = false;
     while(1){
         // printf("Checking TCP Connection to Server\n");
-        isConnected = init_udp_client("172.20.10.9", 42069);
+        isConnected = init_udp_client("192.168.11.40", 42069);
         if(isConnected){
             printf("[UDP Client Task] Failed Client Task\n");
             vTaskSuspend(clientTaskHandle);
@@ -339,7 +339,6 @@ void task_motor_speed(__unused void *params)
             // setup_pwm(MOTOR_B_PWM, PWM_FREQ, MIN_DUTY_CYCLE);
             setup_pwm(MOTOR_A_PWM, 200.0f, 0.65f);
             setup_pwm(MOTOR_B_PWM, 200.0f, 0.65f);
-            
         }
 
         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(25));
@@ -352,8 +351,8 @@ void task_move(__unused void *params)
     bool button_pressed = !gpio_get(BUTTON_PIN); 
     int left_turn_count = 0;
     int right_turn_count = 0;
-    const int MAX_LEFT_TURN = 60; // 6&12 for 50ms delay = 300ms & 600ms
-    const int MAX_RIGHT_TURN = 120;
+    const int MAX_LEFT_TURN = 300; // 6&12 for 50ms delay = 300ms & 600ms
+    const int MAX_RIGHT_TURN = 700;
 
     while (true)
     {
@@ -462,7 +461,7 @@ void task_move(__unused void *params)
                     while (left_turn_count < MAX_LEFT_TURN)
                     {
                         turn_left();
-                        vTaskDelay(pdMS_TO_TICKS(5));
+                        vTaskDelay(pdMS_TO_TICKS(1));
                         getIrLineValue();
 
                         if (line_input > ADC_BLACK)
@@ -479,7 +478,7 @@ void task_move(__unused void *params)
                         while (right_turn_count < MAX_RIGHT_TURN)
                         {
                             turn_right();
-                            vTaskDelay(pdMS_TO_TICKS(5)); // Adjust delay as needed
+                            vTaskDelay(pdMS_TO_TICKS(1)); // Adjust delay as needed
                             getIrLineValue();
                             
                             if (line_input > ADC_BLACK)
@@ -493,7 +492,7 @@ void task_move(__unused void *params)
                         {
                             // Could not find the line, stop robot
                             turn_left();
-                            vTaskDelay(pdMS_TO_TICKS(100));
+                            vTaskDelay(pdMS_TO_TICKS(425));
                             robot_state = STATE_STOP; 
                         }
                     }
@@ -511,7 +510,7 @@ void task_move(__unused void *params)
                 break;
         }
 
-        vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(25));
+        vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(1));
     }
 }
 
@@ -593,7 +592,7 @@ void vLaunch()
 int main()
 {
     stdio_init_all();
-    set_ssid_password("SimPhone", "a1234567");
+    set_ssid_password("yo", "pleasestophacking"); //"SimPhone", "a1234567"
 
     gpio_init(LED_PIN1);
     gpio_init(LED_PIN2);

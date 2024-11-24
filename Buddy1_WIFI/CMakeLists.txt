@@ -67,5 +67,12 @@ if (PICO_CYW43_SUPPORTED) # set by PICO_BOARD=pico_w
         target_link_libraries(UpdatedAccelerometer pico_stdlib hardware_i2c wifi_communication client_communication)
         pico_add_extra_outputs(UpdatedAccelerometer)
         pico_enable_stdio_usb(UpdatedAccelerometer 1)
+
+        add_executable(udp_dashboard udp_dashboard.c)
+        target_compile_definitions(udp_dashboard PRIVATE)
+        target_include_directories(udp_dashboard PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+        target_link_libraries(udp_dashboard pico_stdlib FreeRTOS-Kernel-Heap4 wifi_communication udp_server_communication)
+        pico_add_extra_outputs(udp_dashboard)
+        pico_enable_stdio_usb(udp_dashboard 1)
     endif()
 endif()

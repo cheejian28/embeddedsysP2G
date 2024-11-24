@@ -29,7 +29,7 @@ int main(){
 
     sleep_ms(5000);
 
-    set_ssid_password("SimPhone", "a1234567");
+    set_ssid_password("yo", "pleasestophacking");
     xTaskCreate(vWifiTask, "Wifi Task", 256, NULL, 1, NULL);
 
     xTaskCreate(vServerTask, "UDP Server Task", 256, NULL, 1, &serverTaskHandle);
@@ -130,7 +130,7 @@ void updateDashboard(){
     uint32_t elapsed_time_ms = to_ms_since_boot(get_absolute_time()) - dashboard.lastUpdateTime;
     uint32_t seconds = elapsed_time_ms / 1000;
 
-    printf("\033[2J\033[H");
+    // printf("\033[2J\033[H");
     printf("DASHBOARD (Updated %d seconds ago)\n", seconds);
     printf("==================================\n");
     printf("Car Direction: %s\n", dashboard.direction);
